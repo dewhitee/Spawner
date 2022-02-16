@@ -12,10 +12,10 @@ struct FSpawnTime
 {
 	GENERATED_BODY()
 
-	UPROPERTY(EditAnywhere, Category=Spawner, meta=(ClampMin=0))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner, meta=(ClampMin=0))
 	float Delay = 0.f;
 
-	UPROPERTY(EditAnywhere, Category=Spawner, meta=(ClampMin=0))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner, meta=(ClampMin=0))
 	float RandomTimeScatter = 0.f;
 
 	float Get() const { return Delay + FMath::RandRange(0.f, RandomTimeScatter); }
@@ -26,10 +26,10 @@ struct FSpawnCount
 {
 	GENERATED_BODY()
 
-	UPROPERTY(EditAnywhere, Category=Spawner)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner)
 	bool bRandom = false;
 
-	UPROPERTY(EditAnywhere, Category=Spawner)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner)
 	int32 Count = 1;
 	
 	UPROPERTY(EditAnywhere, Category=Spawner, meta=(EditCondition=bRandom))
@@ -48,13 +48,13 @@ struct FSpawnListEntry
 {
 	GENERATED_BODY()
 
-	UPROPERTY(EditAnywhere, Category=Spawner)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner)
 	TSubclassOf<AActor> ClassToSpawn;
 
-	UPROPERTY(EditAnywhere, Category=Spawner)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner)
 	FSpawnTime Time;
 
-	UPROPERTY(EditAnywhere, Category=Spawner, meta=(ClampMin=0))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner, meta=(ClampMin=0))
 	FSpawnCount Count;
 };
 
@@ -66,6 +66,7 @@ struct FRespawnListEntry
 };
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnSpawn, AActor*, SpawnedActor, const FSpawnArgs&, Args);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnPreSpawn);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnSpawnerStart);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnSpawnerStop);
 
@@ -80,6 +81,9 @@ class SPAWNER_API USpawnerObject : public UObject, public ISpawnerInterface
 public:
 	UPROPERTY(BlueprintAssignable, Category=Spawner)
 	FOnSpawn OnSpawn;
+	
+	UPROPERTY(BlueprintAssignable, Category=Spawner)
+	FOnPreSpawn OnPreSpawn;
 
 	UPROPERTY(BlueprintAssignable, Category=Spawner)
 	FOnSpawnerStop OnStop;
@@ -115,6 +119,15 @@ public:
 	virtual AActor* Spawn_Implementation(const FSpawnArgs& Args) override;
 	virtual AActor* Respawn_Implementation(const FSpawnArgs& Args) override;
 
+	UFUNCTION(BlueprintCallable, Category=Spawner)
+	void SetSpawnEnabled(bool bEnabled);
+
+	UFUNCTION(BlueprintCallable, Category=Spawner)
+	void SetSpawnList(const TArray<FSpawnListEntry>& Entries);
+
+	UFUNCTION(BlueprintCallable, Category=Spawner)
+	void SetDelaysList(const TArray<float>& Delays);
+	
 private:
 	FVector GetSpawnLocation(const FSpawnStartArgs& Args) const;
 };

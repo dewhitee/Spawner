@@ -88,6 +88,21 @@ AActor* USpawnerObject::Respawn_Implementation(const FSpawnArgs& Args)
 	return nullptr;
 }
 
+void USpawnerObject::SetSpawnEnabled(bool bEnabled)
+{
+	bSpawnEnabled = bEnabled;
+}
+
+void USpawnerObject::SetSpawnList(const TArray<FSpawnListEntry>& Entries)
+{
+	SpawnList = Entries;
+}
+
+void USpawnerObject::SetDelaysList(const TArray<float>& Delays)
+{
+	DelaysList = Delays;
+}
+
 FVector USpawnerObject::GetSpawnLocation(const FSpawnStartArgs& Args) const
 {
 	if (Args.bUseOuterLocation)
@@ -99,6 +114,11 @@ FVector USpawnerObject::GetSpawnLocation(const FSpawnStartArgs& Args) const
 			return OuterActor->GetActorLocation();
 		}
 		UE_LOG(LogSpawner, Warning, TEXT("%s: OuterActor was nullptr"), *GetName());
+	}
+	else if (Args.bUseRandomLocationInRadius && Args.Radius > 0.f)
+	{
+		const FVector2D NewPointInRadius = FMath::RandPointInCircle(Args.Radius);
+		return FVector(Args.AtLocation.X + NewPointInRadius.X, Args.AtLocation.Y + NewPointInRadius.Y, Args.AtLocation.Z);
 	}
 	else
 	{

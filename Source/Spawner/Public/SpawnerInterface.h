@@ -29,15 +29,20 @@ struct FSpawnStartArgs
 {
 	GENERATED_BODY()
 	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Strategy)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner)
 	bool bUseOuterLocation = false;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner)
 	FVector AtLocation = FVector::ZeroVector;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Strategy)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner)
 	ESpawnActorCollisionHandlingMethod CollisionHandlingMethod;
-	
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner)
+	bool bUseRandomLocationInRadius;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner)
+	float Radius;
 };
 
 // This class does not need to be modified.
