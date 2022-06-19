@@ -15,13 +15,13 @@ struct FSpawnArgs
 	TSubclassOf<AActor> ClassToSpawn;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner)
-	FVector AtLocation;
+	FVector AtLocation = FVector::ZeroVector;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner)
-	FRotator AtRotation;
+	FRotator AtRotation = FRotator::ZeroRotator;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner)
-	ESpawnActorCollisionHandlingMethod CollisionHandlingMethod;
+	ESpawnActorCollisionHandlingMethod CollisionHandlingMethod = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
 };
 
 USTRUCT(BlueprintType)
@@ -36,13 +36,13 @@ struct FSpawnStartArgs
 	FVector AtLocation = FVector::ZeroVector;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner)
-	ESpawnActorCollisionHandlingMethod CollisionHandlingMethod;
+	ESpawnActorCollisionHandlingMethod CollisionHandlingMethod = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner)
-	bool bUseRandomLocationInRadius;
+	bool bUseRandomLocationInRadius = false;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner)
-	float Radius;
+	float Radius = 100.f;
 };
 
 // This class does not need to be modified.
