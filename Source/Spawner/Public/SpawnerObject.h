@@ -100,7 +100,9 @@ class SPAWNER_API USpawnerObject : public UObject, public ISpawnerInterface
 	
 	
 public:
+	// UObject
 	virtual UWorld* GetWorld() const override;
+	virtual void BeginDestroy() override;
 	
 	// ISpawnerInterface
 	virtual void Start_Implementation(const FSpawnStartArgs& Args) override;
@@ -128,7 +130,7 @@ public:
 	
 	UPROPERTY(BlueprintAssignable, Category=Spawner)
 	FOnSpawnerStart OnStart;
-	
+
 private:
 	FVector GetSpawnLocation(const FSpawnStartArgs& Args, bool& bShouldSkip) const;
 	void SnapToSurface(FVector& OutLocation, bool& bShouldSkip, const FSpawnStartArgs& Args) const;

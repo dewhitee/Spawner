@@ -20,6 +20,19 @@ UWorld* USpawnerObject::GetWorld() const
 	return nullptr;
 }
 
+void USpawnerObject::BeginDestroy()
+{
+	UE_LOG(LogSpawner, Log, TEXT("%s: BeginDestroy."), *GetName());
+	
+	if (GetWorld())
+	{
+		UE_LOG(LogSpawner, Log, TEXT("%s: Clearing spawn timer."), *GetName());
+		GetWorld()->GetTimerManager().ClearTimer(SpawnTimerHandle);
+	}
+	
+	UObject::BeginDestroy();
+}
+
 void USpawnerObject::Start_Implementation(const FSpawnStartArgs& Args)
 {
 	OnStart.Broadcast();
@@ -98,6 +111,7 @@ void USpawnerObject::Start_Implementation(const FSpawnStartArgs& Args)
 
 void USpawnerObject::Stop_Implementation()
 {
+	UE_LOG(LogSpawner, Log, TEXT("%s: Stopping timer."), *GetName());
 	OnStop.Broadcast();
 	GetWorld()->GetTimerManager().ClearTimer(SpawnTimerHandle);
 }
@@ -179,6 +193,8 @@ void USpawnerObject::SnapToSurface(FVector& OutLocation, bool& bShouldSkip, cons
 {
 	FHitResult DownHit;
 	const FVector DownEnd = OutLocation - FVector(0.f, 0.f, Args.Radius);
+	checkf(GetWorld() != nullptr, TEXT("%s (SnapToSurface): World is nullptr!"), *GetName());
+	
 	GetWorld()->LineTraceSingleByChannel(DownHit, OutLocation, DownEnd, ECollisionChannel::ECC_Visibility);
 	DrawDebugLineTrace(Args, DownHit, OutLocation, DownEnd, FColor::Blue);
 
