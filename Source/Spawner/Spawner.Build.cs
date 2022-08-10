@@ -38,6 +38,7 @@ public class Spawner : ModuleRules
 				"Engine",
 				"Slate",
 				"SlateCore",
+				"Distribution"
 				// ... add private dependencies that you statically link with here ...	
 			}
 			);

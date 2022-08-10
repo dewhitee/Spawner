@@ -4,8 +4,37 @@
 #include "SpawnerObject.h"
 
 #include "Spawner.h"
+#include "SpawnListPreset.h"
+#include "SpawnShape.h"
 #include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetSystemLibrary.h"
+#include "Misc/UObjectToken.h"
+
+void FSpawnListEntry::SetEditorOnlyDisplayData()
+{
+#if WITH_EDITOR
+	//UE_LOG(LogSpawner, Log, TEXT("%s: SetEditorOnlyDisplayData, ClassToSpawn=%s"), ClassToSpawn ? *ClassToSpawn.ToString() : TEXT("None"));
+	if (ClassToSpawn.LoadSynchronous())
+	{
+		FString Str = ClassToSpawn->GetName();
+		Str.RemoveFromEnd("_C");
+		ClassName = FName(Str);
+	}
+	Count.ResetBounds();
+	ActualCount = FName(Count.GetCountString());
+	const FString TimeStr = FString::Printf(TEXT("%s"), Time.RandomTimeScatter == 0.f
+		? TEXT("")
+		: *FString::Printf(TEXT("(+-%.5gs)"), Time.RandomTimeScatter));
+	
+	ActualTime = FName(FString::Printf(TEXT("%.5gs %s"), Time.Delay, *TimeStr));
+	TotalTime = FName(FString::Printf(TEXT("%.5gs"), Time.Delay * Count.Get()));
+#endif
+}
+
+USpawnerObject::USpawnerObject()
+{
+	bSpawnEnabled = true;
+}
 
 UWorld* USpawnerObject::GetWorld() const
 {
@@ -33,40 +62,98 @@ void USpawnerObject::BeginDestroy()
 	UObject::BeginDestroy();
 }
 
+void USpawnerObject::PostLoad()
+{
+	UObject::PostLoad();
+	SetEditorOnlySpawnListData();
+}
+
+void USpawnerObject::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	UE_LOG(LogSpawner, Log, TEXT("%s: PostEditChangeProperty"), *GetName());
+	if (PropertyChangedEvent.Property)
+	{
+		SetEditorOnlySpawnListData();
+	}
+	
+	UObject::PostEditChangeProperty(PropertyChangedEvent);
+}
+
 void USpawnerObject::Start_Implementation(const FSpawnStartArgs& Args)
 {
 	OnStart.Broadcast();
-	if (bSpawnEnabled)
+	if (!bSpawnEnabled)
 	{
-		Delegate.BindLambda([&, Args]()
+		return;
+	}
+
+	if (SpawnListPreset.LoadSynchronous())
+	{
+		SpawnList = SpawnListPreset->GetSpawnList();
+	}
+
+	if (Args.bUseRadiusAsSpawnEnabledRadius)
+	{
+		Args.SpawnEnabledRadius = Args.Radius;
+	}
+	
+	Delegate.BindLambda([&, Args]()
+	{
+		UE_LOG(LogSpawner, Log, TEXT("%s: Calling spawn lambda: CurrentIndex=%d, SpawnList.Num()=%d"), *GetName(), CurrentIndex, SpawnList.Num());
+		const FSpawnListEntry& Entry = SpawnList[CurrentIndex];
+		if (!Entry.ClassToSpawn.LoadSynchronous())
 		{
-			const FSpawnListEntry& Entry = SpawnList[CurrentIndex];
-			if (/*CurrentCount*/GetSpawnedCount(Entry.ClassToSpawn, CurrentIndex) < Entry.Count.Get())
+			const FString Msg = FString::Printf(TEXT("SpawnerObject: ClassToSpawn is not specified in SpawnList[%d]. Aborting spawn."), CurrentIndex);
+			UE_LOG(LogSpawner, Error, TEXT("%s"), *Msg);
+
+			if (const AActor* OuterActor = GetTypedOuter<AActor>())
 			{
-				FSpawnArgs SpawnArgs;
-				SpawnArgs.ClassToSpawn = Entry.ClassToSpawn;
-				
-				bool bShouldSkip = false;
-				SpawnArgs.AtLocation = GetSpawnLocation(Args, bShouldSkip);
-				if (Args.bSkipIfStillNotOnSurface && bShouldSkip)
+				FMessageLog PIELogger = FMessageLog(FName("PIE"));
+				const auto TokenizedMsg = FTokenizedMessage::Create(EMessageSeverity::Warning)
+					->AddToken(FActorToken::Create(OuterActor->GetPathName(), OuterActor->GetActorGuid(), FText::FromString(OuterActor->GetActorNameOrLabel())))
+					->AddToken(FTextToken::Create(FText::FromString(Msg)));
+
+				if (SpawnListPreset.LoadSynchronous())
 				{
-					UE_LOG(LogSpawner, Warning, TEXT("%s: Spawn of %s is skipped because surface not found under target location."),
-						*GetName(), *Entry.ClassToSpawn->GetName());
-					return;
+					TokenizedMsg
+						->AddToken(FTextToken::Create(FText::FromString(" - Check set spawn list preset:")))
+						->AddToken(FUObjectToken::Create(SpawnListPreset.Get()));
 				}
 				
-				SpawnArgs.CollisionHandlingMethod = Args.CollisionHandlingMethod;
+				TokenizedMsg->SetIdentifier(this->GetFName());
+				PIELogger.AddMessage(TokenizedMsg);
+				PIELogger.Open();
+				//PIELogger.Notify(FText::FromString("Problem found with spawner!"), EMessageSeverity::Warning, true);
+			}
+			return;
+		}
+		
+		if (/*CurrentCount*/GetSpawnedCount(Entry.ClassToSpawn.Get(), CurrentIndex) < Entry.Count.Get())
+		{
+			FSpawnArgs SpawnArgs;
+			SpawnArgs.ClassToSpawn = Entry.ClassToSpawn.Get();
+				
+			bool bShouldSkip = false;
+			SpawnArgs.AtLocation = GetSpawnLocation(Args, bShouldSkip);
+			if (Args.SnapToSurfaceSettings.bSkipIfStillNotOnSurface && bShouldSkip)
+			{
+				UE_LOG(LogSpawner, Warning, TEXT("%s: Spawn of %s is skipped because surface not found under target location."),
+					*GetName(), *Entry.ClassToSpawn->GetName());
+				return;
+			}
+				
+			SpawnArgs.CollisionHandlingMethod = Args.CollisionHandlingMethod;
 
-				switch (Args.SpawnMode)
-				{
-				case ESpawnMode::None:
-					break;
+			switch (Args.SpawnMode)
+			{
+			case ESpawnMode::None:
+				break;
 					
-				case ESpawnMode::SpawnAlways:
-					Execute_Spawn(this, SpawnArgs);
-					break;
+			case ESpawnMode::SpawnAlways:
+				Execute_Spawn(this, SpawnArgs);
+				break;
 					
-				case ESpawnMode::SpawnWhenPlayerIsNear:
+			case ESpawnMode::SpawnWhenPlayerIsNear:
 				{
 					const APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(this, 0);
 					check(PlayerPawn != nullptr);
@@ -78,34 +165,37 @@ void USpawnerObject::Start_Implementation(const FSpawnStartArgs& Args)
 					break;
 				}	
 					
-				default: ;
-				}
+			default: ;
 			}
-			else // Spawning next actor in SpawnList
+		}
+		else // Spawning next actor in SpawnList
+		{
+			FTimerManager& TimerManager = GetWorld()->GetTimerManager();
+			TimerManager.ClearTimer(SpawnTimerHandle);
+			CurrentCount_DEPRECATED = 0;
+			if (SpawnList.IsValidIndex(++CurrentIndex))
 			{
-				FTimerManager& TimerManager = GetWorld()->GetTimerManager();
-				TimerManager.ClearTimer(SpawnTimerHandle);
-				CurrentCount_DEPRECATED = 0;
-				if (SpawnList.IsValidIndex(++CurrentIndex))
-				{
-					TimerManager.SetTimer(SpawnTimerHandle, Delegate, Entry.Time.Get(), true);
-				}
-				else if (Args.bRespawnAfter) // Respawning from the start
-				{
-					CurrentIndex = 0;
-				}
+				const FSpawnListEntry& NextEntry = SpawnList[CurrentIndex];
+				TimerManager.SetTimer(SpawnTimerHandle, Delegate, NextEntry.Time.Get(), true);
 			}
-		});
+			else if (Args.bRespawnAfter) // Respawning from the start
+			{
+				UE_LOG(LogSpawner, Warning, TEXT("%s: Respawning from the start."), *GetName());
+				CurrentIndex = 0;
+				const FSpawnListEntry& NextEntry = SpawnList[CurrentIndex];
+				TimerManager.SetTimer(SpawnTimerHandle, Delegate, NextEntry.Time.Get(), true);
+			}
+		}
+	});
 
-		if (SpawnList.IsValidIndex(CurrentIndex))
-		{
-			const FSpawnListEntry& Entry = SpawnList[CurrentIndex];
-			GetWorld()->GetTimerManager().SetTimer(SpawnTimerHandle, Delegate, Entry.Time.Get(), true);
-		}
-		else
-		{
-			// TODO: Log out of bounds
-		}
+	if (SpawnList.IsValidIndex(CurrentIndex))
+	{
+		const FSpawnListEntry& Entry = SpawnList[CurrentIndex];
+		GetWorld()->GetTimerManager().SetTimer(SpawnTimerHandle, Delegate, Entry.Time.Get(), true);
+	}
+	else
+	{
+		// TODO: Log out of bounds
 	}
 }
 
@@ -143,9 +233,19 @@ AActor* USpawnerObject::Respawn_Implementation(const FSpawnArgs& Args)
 	return nullptr;
 }
 
+bool USpawnerObject::IsSpawnEnabled() const
+{
+	return bSpawnEnabled;
+}
+
 void USpawnerObject::SetSpawnEnabled(bool bEnabled)
 {
 	bSpawnEnabled = bEnabled;
+}
+
+TArray<FSpawnListEntry> USpawnerObject::GetSpawnList() const
+{
+	return SpawnList;
 }
 
 void USpawnerObject::SetSpawnList(const TArray<FSpawnListEntry>& Entries)
@@ -153,9 +253,12 @@ void USpawnerObject::SetSpawnList(const TArray<FSpawnListEntry>& Entries)
 	SpawnList = Entries;
 }
 
-void USpawnerObject::SetDelaysList(const TArray<float>& Delays)
+void USpawnerObject::SetEditorOnlySpawnListData()
 {
-	DelaysList = Delays;
+	for (FSpawnListEntry& Entry : SpawnList)
+	{
+		Entry.SetEditorOnlyDisplayData();
+	}
 }
 
 FVector USpawnerObject::GetSpawnLocation(const FSpawnStartArgs& Args, bool& bShouldSkip) const
@@ -166,21 +269,20 @@ FVector USpawnerObject::GetSpawnLocation(const FSpawnStartArgs& Args, bool& bSho
 		{
 			UE_LOG(LogSpawner, Verbose, TEXT("%s: OuterActor->GetActorLocation() = %s"),
 				*GetName(), *OuterActor->GetActorLocation().ToCompactString());
+
+			if (Args.bUseRandomLocationInRadius && Args.Radius > 0.f)
+			{
+				Args.AtLocation = OuterActor->GetActorLocation();
+				return GetLocationInRadius(Args, bShouldSkip);
+			}
+			
 			return OuterActor->GetActorLocation();
 		}
 		UE_LOG(LogSpawner, Warning, TEXT("%s: OuterActor was nullptr"), *GetName());
 	}
 	else if (Args.bUseRandomLocationInRadius && Args.Radius > 0.f)
 	{
-		const FVector2D NewPointInRadius = FMath::RandPointInCircle(Args.Radius);
-		FVector OutLocation = FVector(Args.AtLocation.X + NewPointInRadius.X, Args.AtLocation.Y + NewPointInRadius.Y, Args.AtLocation.Z);
-
-		if (Args.bSnapToSurface)
-		{
-			SnapToSurface(OutLocation, bShouldSkip, Args);
-		}
-		
-		return OutLocation;
+		return GetLocationInRadius(Args, bShouldSkip);
 	}
 	else
 	{
@@ -195,12 +297,12 @@ void USpawnerObject::SnapToSurface(FVector& OutLocation, bool& bShouldSkip, cons
 	const FVector DownEnd = OutLocation - FVector(0.f, 0.f, Args.Radius);
 	checkf(GetWorld() != nullptr, TEXT("%s (SnapToSurface): World is nullptr!"), *GetName());
 	
-	GetWorld()->LineTraceSingleByChannel(DownHit, OutLocation, DownEnd, ECollisionChannel::ECC_Visibility);
+	GetWorld()->LineTraceSingleByChannel(DownHit, OutLocation, DownEnd, Args.SnapToSurfaceSettings.CollisionChannel);
 	DrawDebugLineTrace(Args, DownHit, OutLocation, DownEnd, FColor::Blue);
 
 	FHitResult UpHit;
 	const FVector UpEnd	= OutLocation + FVector(0.f, 0.f, Args.Radius);
-	GetWorld()->LineTraceSingleByChannel(UpHit, OutLocation, UpEnd, ECollisionChannel::ECC_Visibility);
+	GetWorld()->LineTraceSingleByChannel(UpHit, OutLocation, UpEnd, Args.SnapToSurfaceSettings.CollisionChannel);
 	DrawDebugLineTrace(Args, UpHit, OutLocation, UpEnd, FColor::Yellow);
 	
 	if (UpHit.bBlockingHit)
@@ -209,7 +311,7 @@ void USpawnerObject::SnapToSurface(FVector& OutLocation, bool& bShouldSkip, cons
 		FHitResult UpToBottomHit;
 		const FVector Start = OutLocation + FVector(0.f, 0.f, Args.Radius);
 		const FVector End = UpHit.Location - FVector(0.f, 0.f, Args.Radius - UpHit.Location.Z);
-		GetWorld()->LineTraceSingleByChannel(UpToBottomHit, Start, End, ECollisionChannel::ECC_Visibility);
+		GetWorld()->LineTraceSingleByChannel(UpToBottomHit, Start, End, Args.SnapToSurfaceSettings.CollisionChannel);
 		DrawDebugLineTrace(Args, UpToBottomHit, Start, End, FColor::Red);
 		
 		if (UpToBottomHit.bBlockingHit)
@@ -282,6 +384,29 @@ void USpawnerObject::AddNewSpawnedActor(AActor* SpawnedActor, int32 Index)
 	SpawnedActors.Add(FSpawnedListEntry(Index, SpawnedActor));
 }
 
+FVector USpawnerObject::GetLocationInRadius(const FSpawnStartArgs& Args, bool& bShouldSkip) const
+{
+	if (IsValid(Args.SpawnShapeSettings.SpawnShape))
+	{
+		FVector OutLocation = Args.SpawnShapeSettings.SpawnShape->GetLocationInShape();
+		if (Args.bSnapToSurface)
+		{
+			SnapToSurface(OutLocation, bShouldSkip, Args);
+		}
+		return OutLocation;
+	}
+	
+	const FVector2D NewPointInRadius = FMath::RandPointInCircle(Args.Radius);
+	FVector OutLocation = FVector(Args.AtLocation.X + NewPointInRadius.X, Args.AtLocation.Y + NewPointInRadius.Y, Args.AtLocation.Z);
+
+	if (Args.bSnapToSurface)
+	{
+		SnapToSurface(OutLocation, bShouldSkip, Args);
+	}
+		
+	return OutLocation;
+}
+
 void USpawnerObject::OnSpawnedActorDestroyed(AActor* SpawnedActor)
 {
 	if (SpawnedActor && SpawnedActor->IsPendingKillPending())
@@ -293,10 +418,6 @@ void USpawnerObject::OnSpawnedActorDestroyed(AActor* SpawnedActor)
 				Entry.SpawnedActors.RemoveSwap(SpawnedActor);
 			}
 		}
-		/*if (FSpawnedListEntry* Entry = SpawnedActors.Find(SpawnedActor->GetClass()))
-		{
-			Entry->SpawnedActors.Remove(SpawnedActor);
-		}*/
 	}
 }
 

@@ -7,81 +7,11 @@
 #include "UObject/NoExportTypes.h"
 #include "SpawnerObject.generated.h"
 
+class USpawnListPreset;
 USTRUCT(BlueprintType)
-struct FSpawnTime
+struct FRespawnListEntry_DEPRECATED
 {
 	GENERATED_BODY()
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner, meta=(ClampMin=0))
-	float Delay = 0.f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner, meta=(ClampMin=0))
-	float RandomTimeScatter = 0.f;
-
-	float Get() const { return Delay + FMath::RandRange(0.f, RandomTimeScatter); }
-};
-
-USTRUCT(BlueprintType)
-struct FSpawnCount
-{
-	GENERATED_BODY()
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner)
-	bool bRandom = false;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner)
-	int32 Count = 1;
-	
-	UPROPERTY(EditAnywhere, Category=Spawner, meta=(EditCondition=bRandom))
-	FInt32Range RandomCount;
-
-	int32 Get() const
-	{
-		return bRandom
-			? FMath::RandRange(RandomCount.GetLowerBoundValue(), RandomCount.GetUpperBoundValue())
-			: Count;
-	}
-};
-
-USTRUCT(BlueprintType)
-struct FSpawnListEntry
-{
-	GENERATED_BODY()
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner)
-	TSubclassOf<AActor> ClassToSpawn;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner)
-	FSpawnTime Time;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner, meta=(ClampMin=0))
-	FSpawnCount Count;
-};
-
-USTRUCT(BlueprintType)
-struct FSpawnedListEntry
-{
-	GENERATED_BODY()
-
-	FSpawnedListEntry() : Index(0) {}
-	FSpawnedListEntry(int32 InIndex, AActor* InActor) : Index(InIndex), SpawnedActors({InActor}) {}
-	TSubclassOf<AActor> GetClass() const
-	{
-		return SpawnedActors.IsEmpty() ? nullptr : SpawnedActors[0]->GetClass();
-	}
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawned)
-	int32 Index;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawned)
-	TArray<TObjectPtr<AActor>> SpawnedActors;
-};
-
-USTRUCT(BlueprintType)
-struct FRespawnListEntry
-{
-	GENERATED_BODY()
-	
 };
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnSpawn, AActor*, SpawnedActor, const FSpawnArgs&, Args);
@@ -92,17 +22,19 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnSpawnerStop);
 /**
  * 
  */
-UCLASS(BlueprintType, Blueprintable, DefaultToInstanced, EditInlineNew)
+UCLASS(BlueprintType, Blueprintable, DefaultToInstanced, EditInlineNew, CollapseCategories, DisplayName="Spawner")
 class SPAWNER_API USpawnerObject : public UObject, public ISpawnerInterface
 {
 	GENERATED_BODY()
 
-	
-	
 public:
+	USpawnerObject();
+	
 	// UObject
 	virtual UWorld* GetWorld() const override;
 	virtual void BeginDestroy() override;
+	virtual void PostLoad() override;
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 	
 	// ISpawnerInterface
 	virtual void Start_Implementation(const FSpawnStartArgs& Args) override;
@@ -111,13 +43,19 @@ public:
 	virtual AActor* Respawn_Implementation(const FSpawnArgs& Args) override;
 
 	UFUNCTION(BlueprintCallable, Category=Spawner)
+	bool IsSpawnEnabled() const;
+
+	UFUNCTION(BlueprintCallable, Category=Spawner)
 	void SetSpawnEnabled(bool bEnabled);
+
+	UFUNCTION(BlueprintGetter, Category=Spawner)
+	TArray<FSpawnListEntry> GetSpawnList() const;
 
 	UFUNCTION(BlueprintCallable, Category=Spawner)
 	void SetSpawnList(const TArray<FSpawnListEntry>& Entries);
 
 	UFUNCTION(BlueprintCallable, Category=Spawner)
-	void SetDelaysList(const TArray<float>& Delays);
+	void SetEditorOnlySpawnListData();
 	
 	UPROPERTY(BlueprintAssignable, Category=Spawner)
 	FOnSpawn OnSpawn;
@@ -130,13 +68,14 @@ public:
 	
 	UPROPERTY(BlueprintAssignable, Category=Spawner)
 	FOnSpawnerStart OnStart;
-
+	
 private:
 	FVector GetSpawnLocation(const FSpawnStartArgs& Args, bool& bShouldSkip) const;
 	void SnapToSurface(FVector& OutLocation, bool& bShouldSkip, const FSpawnStartArgs& Args) const;
 	void DrawDebugLineTrace(const FSpawnStartArgs& Args, const FHitResult& Hit, const FVector& LineTraceStart, const FVector& LineTraceEnd,
 		FColor Color, float Lifetime = 5.f, float Thickness = 5.f, float HitPointSize = 32.f) const;
 	void AddNewSpawnedActor(AActor* SpawnedActor, int32 Index);
+	FVector GetLocationInRadius(const FSpawnStartArgs& Args, bool& bShouldSkip) const;
 
 	UFUNCTION()
 	void OnSpawnedActorDestroyed(AActor* SpawnedActor);
@@ -146,19 +85,22 @@ private:
 	UPROPERTY(EditAnywhere, Category=Spawner)
 	bool bSpawnEnabled;
 	
-	UPROPERTY(EditAnywhere, Category=Spawner)
+	UPROPERTY(EditAnywhere, BlueprintGetter=GetSpawnList, Category=Spawner, meta=(TitleProperty="{ClassName}: Count={ActualCount}, Time={ActualTime}, TotalTime={TotalTime}"))
 	TArray<FSpawnListEntry> SpawnList;
 
-	UPROPERTY(VisibleAnywhere, Category=Spawner)
-	TArray<float> DelaysList;
+	/**
+	 * Optional spawn list preset that will be loaded on spawner object Start method execution.
+	 */
+	UPROPERTY(EditAnywhere, Category=Spawner)
+	TSoftObjectPtr<USpawnListPreset> SpawnListPreset;
 
-	UPROPERTY(VisibleAnywhere, Category=Spawner)
+	UPROPERTY(VisibleDefaultsOnly, Category=Spawner, AdvancedDisplay)
 	int32 CurrentIndex;
 
 	UPROPERTY(/*VisibleAnywhere, Category=Spawner*/)
 	int32 CurrentCount_DEPRECATED;
 
-	UPROPERTY(VisibleAnywhere, Category=Spawner)
+	UPROPERTY(VisibleAnywhere, Category=Spawner, AdvancedDisplay)
 	TArray<FSpawnedListEntry> SpawnedActors;
 
 	FTimerHandle SpawnTimerHandle;
