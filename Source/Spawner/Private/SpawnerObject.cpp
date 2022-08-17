@@ -99,7 +99,7 @@ void USpawnerObject::Start_Implementation(const FSpawnStartArgs& Args)
 	
 	Delegate.BindLambda([&, Args]()
 	{
-		UE_LOG(LogSpawner, Log, TEXT("%s: Calling spawn lambda: CurrentIndex=%d, SpawnList.Num()=%d"), *GetName(), CurrentIndex, SpawnList.Num());
+		UE_LOG(LogSpawner, Verbose, TEXT("%s: Calling spawn lambda: CurrentIndex=%d, SpawnList.Num()=%d"), *GetName(), CurrentIndex, SpawnList.Num());
 		const FSpawnListEntry& Entry = SpawnList[CurrentIndex];
 		if (!Entry.ClassToSpawn.LoadSynchronous())
 		{
@@ -180,7 +180,7 @@ void USpawnerObject::Start_Implementation(const FSpawnStartArgs& Args)
 			}
 			else if (Args.bRespawnAfter) // Respawning from the start
 			{
-				UE_LOG(LogSpawner, Warning, TEXT("%s: Respawning from the start."), *GetName());
+				UE_LOG(LogSpawner, Verbose, TEXT("%s: Respawning from the start."), *GetName());
 				CurrentIndex = 0;
 				const FSpawnListEntry& NextEntry = SpawnList[CurrentIndex];
 				TimerManager.SetTimer(SpawnTimerHandle, Delegate, NextEntry.Time.Get(), true);
