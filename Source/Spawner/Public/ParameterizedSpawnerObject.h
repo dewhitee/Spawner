@@ -17,7 +17,10 @@ class SPAWNER_API UParameterizedSpawnerObject : public USpawnerObject
 public:
 	// USpawnerObject
 	virtual void Start_Implementation(const FSpawnStartArgs& Args) override;
+
+#if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+#endif
 
 	void SetAtLocation(FVector AtLocation);
 	void SetRadius(float Radius);

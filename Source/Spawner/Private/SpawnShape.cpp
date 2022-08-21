@@ -27,6 +27,7 @@ URingSpawnShape::URingSpawnShape()
 	InnerRadius = SpawnSettings.Radius * 0.8f;
 }
 
+#if WITH_EDITOR
 void URingSpawnShape::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
 	if (PropertyChangedEvent.Property)
@@ -51,6 +52,7 @@ void URingSpawnShape::PostEditChangeProperty(FPropertyChangedEvent& PropertyChan
 	
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 }
+#endif
 
 FVector URingSpawnShape::GetLocationInShape() const
 {

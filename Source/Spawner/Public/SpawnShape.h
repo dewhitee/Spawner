@@ -26,8 +26,10 @@ class SPAWNER_API URingSpawnShape : public USpawnShape
 
 public:
 	URingSpawnShape();
-	
+
+#if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+#endif
 
 	virtual FVector GetLocationInShape() const override;
 	float GetOuterRadius() const { return OuterRadius; }

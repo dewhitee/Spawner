@@ -8,6 +8,7 @@ void UParameterizedSpawnerObject::Start_Implementation(const FSpawnStartArgs& Ar
 	Super::Start_Implementation(SpawnSettings);
 }
 
+#if WITH_EDITOR
 void UParameterizedSpawnerObject::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
@@ -21,6 +22,7 @@ void UParameterizedSpawnerObject::PostEditChangeProperty(FPropertyChangedEvent& 
 		}
 	}*/
 }
+#endif
 
 void UParameterizedSpawnerObject::SetAtLocation(FVector AtLocation)
 {

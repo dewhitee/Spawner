@@ -34,7 +34,10 @@ public:
 	virtual UWorld* GetWorld() const override;
 	virtual void BeginDestroy() override;
 	virtual void PostLoad() override;
+
+#if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+#endif
 	
 	// ISpawnerInterface
 	virtual void Start_Implementation(const FSpawnStartArgs& Args) override;

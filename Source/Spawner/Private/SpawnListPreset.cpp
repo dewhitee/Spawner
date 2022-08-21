@@ -15,6 +15,7 @@ void USpawnListPreset::PostLoad()
 	}
 }
 
+#if WITH_EDITOR
 void USpawnListPreset::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
 	if (PropertyChangedEvent.Property)
@@ -29,3 +30,4 @@ void USpawnListPreset::PostEditChangeProperty(FPropertyChangedEvent& PropertyCha
 	
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 }
+#endif

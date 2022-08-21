@@ -68,6 +68,7 @@ void USpawnerObject::PostLoad()
 	SetEditorOnlySpawnListData();
 }
 
+#if WITH_EDITOR
 void USpawnerObject::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
 	UE_LOG(LogSpawner, Log, TEXT("%s: PostEditChangeProperty"), *GetName());
@@ -78,6 +79,7 @@ void USpawnerObject::PostEditChangeProperty(FPropertyChangedEvent& PropertyChang
 	
 	UObject::PostEditChangeProperty(PropertyChangedEvent);
 }
+#endif
 
 void USpawnerObject::Start_Implementation(const FSpawnStartArgs& Args)
 {
@@ -106,6 +108,7 @@ void USpawnerObject::Start_Implementation(const FSpawnStartArgs& Args)
 			const FString Msg = FString::Printf(TEXT("SpawnerObject: ClassToSpawn is not specified in SpawnList[%d]. Aborting spawn."), CurrentIndex);
 			UE_LOG(LogSpawner, Error, TEXT("%s"), *Msg);
 
+#if WITH_EDITOR
 			if (const AActor* OuterActor = GetTypedOuter<AActor>())
 			{
 				FMessageLog PIELogger = FMessageLog(FName("PIE"));
@@ -125,6 +128,7 @@ void USpawnerObject::Start_Implementation(const FSpawnStartArgs& Args)
 				PIELogger.Open();
 				//PIELogger.Notify(FText::FromString("Problem found with spawner!"), EMessageSeverity::Warning, true);
 			}
+#endif
 			return;
 		}
 		
@@ -217,7 +221,7 @@ AActor* USpawnerObject::Spawn_Implementation(const FSpawnArgs& Args)
 		CurrentCount_DEPRECATED++;
 		OnSpawn.Broadcast(SpawnedActor, Args);
 #if WITH_EDITOR
-		UE_LOG(LogSpawner, Log, TEXT("%s: %s was spawned at %s location"), *GetName(), *SpawnedActor->GetActorLabel(),
+		UE_LOG(LogSpawner, Log, TEXT("%s: %s was spawned at %s location"), *GetName(), *SpawnedActor->GetActorNameOrLabel(),
 			*Args.AtLocation.ToCompactString());
 #endif
 
