@@ -19,6 +19,8 @@ protected:
 	TSharedPtr<IPropertyHandle> ClassToSpawnPropertyHandle;
 	TSharedPtr<IPropertyHandle> TimePropertyHandle;
 	TSharedPtr<IPropertyHandle> CountPropertyHandle;
+	TSharedPtr<IPropertyHandle> ConditionalPropertyHandle;
+	TSharedPtr<IPropertyHandle> ConditionalActorsPropertyHandle;
 	TSharedPtr<IPropertyHandle> ClassNamePropertyHandle;
 	TSharedPtr<IPropertyHandle> ActualCountPropertyHandle;
 	TSharedPtr<IPropertyHandle> ActualTimePropertyHandle;
@@ -26,6 +28,8 @@ protected:
 	FText ClassToSpawnText;
 	FText TimeText;
 	FText CountText;
+	FText ConditionalText;
+	FText ConditionalActorsText;
 	FText ClassNameText;
 	FText ActualCountText;
 	FText ActualTimeText;
@@ -33,6 +37,8 @@ protected:
 	void OnClassToSpawnChanged(TSharedPtr<IPropertyHandle> PropertyHandle);
 	void OnTimeChanged(TSharedPtr<IPropertyHandle> PropertyHandle);
 	void OnCountChanged(TSharedPtr<IPropertyHandle> PropertyHandle);
+	void OnConditionalChanged(TSharedPtr<IPropertyHandle> PropertyHandle);
+	void OnConditionalActorsChanged(TSharedPtr<IPropertyHandle> PropertyHandle);
 	void OnClassNameChanged(TSharedPtr<IPropertyHandle> PropertyHandle);
 	void OnActualCountChanged(TSharedPtr<IPropertyHandle> PropertyHandle);
 	void OnActualTimeChanged(TSharedPtr<IPropertyHandle> PropertyHandle);

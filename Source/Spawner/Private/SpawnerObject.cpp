@@ -3,10 +3,15 @@
 
 #include "SpawnerObject.h"
 
+#include "NavigationSystem.h"
+#include "SpawnConditionObject.h"
+#include "SpawnedActorInterface.h"
 #include "Spawner.h"
 #include "SpawnListPreset.h"
 #include "SpawnShape.h"
+#include "Components/CapsuleComponent.h"
 #include "Kismet/GameplayStatics.h"
+#include "Kismet/KismetMathLibrary.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "Misc/UObjectToken.h"
 
@@ -147,6 +152,7 @@ void USpawnerObject::Start_Implementation(const FSpawnStartArgs& Args)
 			}
 				
 			SpawnArgs.CollisionHandlingMethod = Args.CollisionHandlingMethod;
+			SpawnArgs.Entry = Entry;
 
 			switch (Args.SpawnMode)
 			{
@@ -176,7 +182,7 @@ void USpawnerObject::Start_Implementation(const FSpawnStartArgs& Args)
 		{
 			FTimerManager& TimerManager = GetWorld()->GetTimerManager();
 			TimerManager.ClearTimer(SpawnTimerHandle);
-			CurrentCount_DEPRECATED = 0;
+			//CurrentCount_DEPRECATED = 0;
 			if (SpawnList.IsValidIndex(++CurrentIndex))
 			{
 				const FSpawnListEntry& NextEntry = SpawnList[CurrentIndex];
@@ -218,7 +224,7 @@ AActor* USpawnerObject::Spawn_Implementation(const FSpawnArgs& Args)
 	AActor* SpawnedActor = GetWorld()->SpawnActor(Args.ClassToSpawn, &Args.AtLocation, &Args.AtRotation, SpawnParams);
 	if (SpawnedActor)
 	{
-		CurrentCount_DEPRECATED++;
+		//CurrentCount_DEPRECATED++;
 		OnSpawn.Broadcast(SpawnedActor, Args);
 #if WITH_EDITOR
 		UE_LOG(LogSpawner, Log, TEXT("%s: %s was spawned at %s location"), *GetName(), *SpawnedActor->GetActorNameOrLabel(),
@@ -227,6 +233,75 @@ AActor* USpawnerObject::Spawn_Implementation(const FSpawnArgs& Args)
 
 		AddNewSpawnedActor(SpawnedActor, CurrentIndex);
 		SpawnedActor->OnDestroyed.AddDynamic(this, &USpawnerObject::OnSpawnedActorDestroyed);
+
+		if (ISpawnedActorInterface* Interface = Cast<ISpawnedActorInterface>(SpawnedActor))
+		{
+			UE_LOG(LogSpawner, Log, TEXT("%s: Setting spawner object of %s actor to this."), *GetName(), *SpawnedActor->GetActorNameOrLabel());
+			Interface->SetSpawnerObject(this);
+		}
+		else
+		{
+			UE_LOG(LogSpawner, Warning, TEXT("%s: %s does not implement ISpawnedActorInterface!"), *GetName(), *SpawnedActor->GetActorNameOrLabel());
+		}
+
+		if (!Args.Entry.ConditionalActors.IsEmpty())
+		{
+			const int32 CurrentSpawnedCount = GetSpawnedCount(Args.ClassToSpawn, CurrentIndex);
+			const int32 TotalSpawnedCount = GetTotalSpawnedCount();
+
+			int32 Index = 0;
+			for (const FSpawnConditionalActorListEntry& ConditionalActor : Args.Entry.ConditionalActors)
+			{
+				switch (ConditionalActor.ValueMode)
+				{
+				case ESpawnConditionalValueMode::Probability:
+					if (UKismetMathLibrary::RandomBoolWithWeight(ConditionalActor.Probability))
+					{
+						GetWorld()->SpawnActor(ConditionalActor.ActorClass.LoadSynchronous(), &Args.AtLocation, &Args.AtRotation, SpawnParams);
+					}
+					break;
+				case ESpawnConditionalValueMode::EachIndex:
+					if (CurrentSpawnedCount % ConditionalActor.EachIndex == 0)
+					{
+						GetWorld()->SpawnActor(ConditionalActor.ActorClass.LoadSynchronous(), &Args.AtLocation, &Args.AtRotation, SpawnParams);
+					}
+					break;
+				case ESpawnConditionalValueMode::Custom:
+					if (ConditionalActor.CustomCondition && ConditionalActor.CustomCondition->CanSpawn(
+						ConditionalActor.ActorClass.LoadSynchronous(), SpawnedActor, CurrentIndex, CurrentSpawnedCount, TotalSpawnedCount))
+					{
+						GetWorld()->SpawnActor(ConditionalActor.ActorClass.LoadSynchronous(), &Args.AtLocation, &Args.AtRotation, SpawnParams);
+					}
+					else if (!ConditionalActor.CustomCondition)
+					{
+						const FString Msg = FString::Printf(TEXT("%s: SpawnList[%d] entry ConditionalActors[%d] CustomCondition property is not set."), *GetName(), CurrentIndex, Index);
+						UE_LOG(LogSpawner, Error, TEXT("%s"), *Msg);
+#if WITH_EDITOR
+						if (const AActor* OuterActor = GetTypedOuter<AActor>())
+						{
+							FMessageLog PIELogger = FMessageLog(FName("PIE"));
+							const auto TokenizedMsg = FTokenizedMessage::Create(EMessageSeverity::Warning)
+								->AddToken(FActorToken::Create(OuterActor->GetPathName(), OuterActor->GetActorGuid(), FText::FromString(OuterActor->GetActorNameOrLabel())))
+								->AddToken(FTextToken::Create(FText::FromString(Msg)));
+
+							if (SpawnListPreset.LoadSynchronous())
+							{
+								TokenizedMsg
+									->AddToken(FTextToken::Create(FText::FromString(" - Check set spawn list preset:")))
+									->AddToken(FUObjectToken::Create(SpawnListPreset.Get()));
+							}
+					
+							TokenizedMsg->SetIdentifier(this->GetFName());
+							PIELogger.AddMessage(TokenizedMsg);
+							PIELogger.Open();
+						}
+#endif
+					}
+				default: ;
+				}
+				Index++;
+			}
+		}
 	}
 	return SpawnedActor;
 }
@@ -355,6 +430,67 @@ void USpawnerObject::SnapToSurface(FVector& OutLocation, bool& bShouldSkip, cons
 	{
 		bShouldSkip = true;
 	}
+
+	if (Args.SnapToSurfaceSettings.bPushToRandomNavigableLocation)
+	{
+		UNavigationSystemV1* NavSystem = UNavigationSystemV1::GetNavigationSystem(const_cast<USpawnerObject*>(this));
+		const float SearchRadius = Args.SnapToSurfaceSettings.bUseRadiusAsSearchRadius ? Args.Radius : Args.SnapToSurfaceSettings.NavigableLocationSearchRadius;
+		
+		// Check if we are already at navmesh
+		if (Args.SnapToSurfaceSettings.bCorrectUsingNavProjection)
+		{
+			FNavLocation CurrentNavLoc;
+			if (NavSystem->ProjectPointToNavigation(OutLocation, CurrentNavLoc))
+			{
+				//DrawDebugPoint(GetWorld(), OutLocation, 90.f, FColor::Black, false, 10.f);
+				if (Args.bDrawDebug)
+				{
+					DrawDebugPoint(GetWorld(), CurrentNavLoc.Location, 90.f, FColor::Green, false, 10.f);
+					DrawDebugLineTraceNoHitPoint(Args, OutLocation, CurrentNavLoc.Location, FColor::Turquoise);
+				}
+
+				if (Args.SnapToSurfaceSettings.bRandomizeNavProjectionTargetLocation)
+				{
+					FNavLocation CorrectionNavigableLocation;
+					if (NavSystem->GetRandomPointInNavigableRadius(OutLocation, Args.SnapToSurfaceSettings.CorrectionRandomTargetLocationRadius, CorrectionNavigableLocation))
+					{
+						if (Args.bDrawDebug)
+						{
+							DrawDebugSphere(GetWorld(), OutLocation, Args.SnapToSurfaceSettings.CorrectionRandomTargetLocationRadius, 6, FColor::Silver, false, 10.f);
+							DrawDebugLineTraceNoHitPoint(Args, OutLocation, CorrectionNavigableLocation.Location, FColor::Silver);
+							DrawDebugPoint(GetWorld(), CorrectionNavigableLocation.Location, 15.f, FColor::Silver, false, 10.f);
+						}
+						
+						OutLocation = CorrectionNavigableLocation;
+						bShouldSkip = false;
+					}
+				}
+
+				// Do nothing if we are already on a valid navmesh
+				return;
+			}
+			else
+			{
+				DrawDebugPoint(GetWorld(), OutLocation, 90.f, FColor::Black, false, 10.f);
+			}
+		}
+		
+		FNavLocation NavigableLocation;
+		const bool bFoundNavMesh = NavSystem->GetRandomPointInNavigableRadius(OutLocation, SearchRadius, NavigableLocation);
+		DrawDebugLineTraceNoHitPoint(Args, OutLocation, NavigableLocation.Location, FColor::Cyan);
+		
+		if (Args.bDrawDebug)
+		{
+			DrawDebugSphere(GetWorld(), OutLocation, SearchRadius, 6, FColor::Green, false, 10.f);
+			DrawDebugPoint(GetWorld(), NavigableLocation.Location, 30.f, FColor::Cyan, false, 10.f);
+		}
+
+		if (bFoundNavMesh)
+		{
+			OutLocation = NavigableLocation;
+			bShouldSkip = false;
+		}
+	}
 }
 
 void USpawnerObject::DrawDebugLineTrace(const FSpawnStartArgs& Args, const FHitResult& Hit, const FVector& LineTraceStart, const FVector& LineTraceEnd,
@@ -370,6 +506,15 @@ void USpawnerObject::DrawDebugLineTrace(const FSpawnStartArgs& Args, const FHitR
 				DrawDebugPoint(GetWorld(), Hit.Location, HitPointSize, Color, false, Lifetime);
 			}
 		}
+	}
+}
+
+void USpawnerObject::DrawDebugLineTraceNoHitPoint(const FSpawnStartArgs& Args, const FVector& LineTraceStart,
+	const FVector& LineTraceEnd, FColor Color, float Lifetime, float Thickness) const
+{
+	if (Args.bDrawDebug)
+	{
+		DrawDebugLine(GetWorld(), LineTraceStart, LineTraceEnd, Color, false, Lifetime, 0, Thickness);
 	}
 }
 
@@ -435,4 +580,14 @@ int32 USpawnerObject::GetSpawnedCount(const TSubclassOf<AActor>& Spawned, int32 
 		}
 	}
 	return 0;
+}
+
+int32 USpawnerObject::GetTotalSpawnedCount() const
+{
+	int32 OutCount = 0;
+	for (const FSpawnedListEntry& Entry : SpawnedActors)
+	{
+		OutCount += Entry.SpawnedActors.Num();
+	}
+	return OutCount;
 }

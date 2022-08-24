@@ -10,7 +10,8 @@ public class SpawnerEditor : ModuleRules
             new string[]
             {
                 "Core",
-                "EditorStyle"
+                "EditorStyle", 
+                "PropertyEditor"
             }
         );
 
@@ -21,7 +22,7 @@ public class SpawnerEditor : ModuleRules
                 "Engine",
                 "Slate",
                 "SlateCore",
-                "Spawner"
+                "Spawner",
             }
         );
     }

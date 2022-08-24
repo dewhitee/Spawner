@@ -29,6 +29,11 @@ void UParameterizedSpawnerObject::SetAtLocation(FVector AtLocation)
 	SpawnSettings.AtLocation = AtLocation;
 }
 
+float UParameterizedSpawnerObject::GetRadius() const
+{
+	return SpawnSettings.Radius;
+}
+
 void UParameterizedSpawnerObject::SetRadius(float Radius)
 {
 	SpawnSettings.Radius = Radius;
@@ -46,4 +51,9 @@ FSpawnStartArgs UParameterizedSpawnerObject::GetSpawnSettings() const
 void UParameterizedSpawnerObject::SetSpawnSettings(const FSpawnStartArgs& InSpawnSettings)
 {
 	SpawnSettings = InSpawnSettings;
+}
+
+void UParameterizedSpawnerObject::SnapToSurfaceParameterized(FVector& OutLocation, bool& bShouldSkip) const
+{
+	SnapToSurface(OutLocation, bShouldSkip, SpawnSettings);
 }

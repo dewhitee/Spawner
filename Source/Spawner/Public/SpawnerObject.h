@@ -71,12 +71,16 @@ public:
 	
 	UPROPERTY(BlueprintAssignable, Category=Spawner)
 	FOnSpawnerStart OnStart;
+
+protected:
+	void SnapToSurface(FVector& OutLocation, bool& bShouldSkip, const FSpawnStartArgs& Args) const;
 	
 private:
 	FVector GetSpawnLocation(const FSpawnStartArgs& Args, bool& bShouldSkip) const;
-	void SnapToSurface(FVector& OutLocation, bool& bShouldSkip, const FSpawnStartArgs& Args) const;
 	void DrawDebugLineTrace(const FSpawnStartArgs& Args, const FHitResult& Hit, const FVector& LineTraceStart, const FVector& LineTraceEnd,
 		FColor Color, float Lifetime = 5.f, float Thickness = 5.f, float HitPointSize = 32.f) const;
+	void DrawDebugLineTraceNoHitPoint(const FSpawnStartArgs& Args, const FVector& LineTraceStart, const FVector& LineTraceEnd,
+		FColor Color, float Lifetime = 5.f, float Thickness = 5.f) const;
 	void AddNewSpawnedActor(AActor* SpawnedActor, int32 Index);
 	FVector GetLocationInRadius(const FSpawnStartArgs& Args, bool& bShouldSkip) const;
 
@@ -84,6 +88,7 @@ private:
 	void OnSpawnedActorDestroyed(AActor* SpawnedActor);
 	
 	int32 GetSpawnedCount(const TSubclassOf<AActor>& Spawned, int32 Index) const;
+	int32 GetTotalSpawnedCount() const;
 	
 	UPROPERTY(EditAnywhere, Category=Spawner)
 	bool bSpawnEnabled;

@@ -18,16 +18,20 @@ TSharedRef<IPropertyTypeCustomization> FSpawnListEntryCustomization::MakeInstanc
 void FSpawnListEntryCustomization::CustomizeHeader(TSharedRef<IPropertyHandle> PropertyHandle,
 	FDetailWidgetRow& HeaderRow, IPropertyTypeCustomizationUtils& CustomizationUtils)
 {
-	ClassToSpawnPropertyHandle	= PropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FSpawnListEntry, ClassToSpawn));
-	TimePropertyHandle			= PropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FSpawnListEntry, Time));
-	CountPropertyHandle			= PropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FSpawnListEntry, Count));
-	ClassNamePropertyHandle		= PropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FSpawnListEntry, ClassName));
-	ActualCountPropertyHandle	= PropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FSpawnListEntry, ActualCount));
-	ActualTimePropertyHandle	= PropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FSpawnListEntry, ActualTime));
+	ClassToSpawnPropertyHandle		= PropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FSpawnListEntry, ClassToSpawn));
+	TimePropertyHandle				= PropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FSpawnListEntry, Time));
+	CountPropertyHandle				= PropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FSpawnListEntry, Count));
+	//ConditionalPropertyHandle	= PropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FSpawnListEntry, Conditional));
+	ConditionalActorsPropertyHandle	= PropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FSpawnListEntry, ConditionalActors));
+	ClassNamePropertyHandle			= PropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FSpawnListEntry, ClassName));
+	ActualCountPropertyHandle		= PropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FSpawnListEntry, ActualCount));
+	ActualTimePropertyHandle		= PropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FSpawnListEntry, ActualTime));
 
 	ClassToSpawnPropertyHandle->GetValueAsDisplayText(ClassToSpawnText);
 	TimePropertyHandle->GetValueAsDisplayText(TimeText);
 	CountPropertyHandle->GetValueAsDisplayText(CountText);
+	//ConditionalPropertyHandle->GetValueAsDisplayText(ConditionalText);
+	ConditionalActorsPropertyHandle->GetValueAsDisplayText(ConditionalActorsText);
 	ClassNamePropertyHandle->GetValueAsDisplayText(ClassNameText);
 	ActualCountPropertyHandle->GetValueAsDisplayText(ActualCountText);
 	ActualTimePropertyHandle->GetValueAsDisplayText(ActualTimeText);
@@ -176,6 +180,8 @@ void FSpawnListEntryCustomization::CustomizeHeader(TSharedRef<IPropertyHandle> P
 	OnClassToSpawnChanged(ClassToSpawnPropertyHandle);
 	OnTimeChanged(TimePropertyHandle);
 	OnCountChanged(CountPropertyHandle);
+	//OnConditionalChanged(ConditionalPropertyHandle);
+	OnConditionalChanged(ConditionalActorsPropertyHandle);
 	OnClassNameChanged(ClassNamePropertyHandle);
 	OnActualCountChanged(ActualCountPropertyHandle);
 	OnActualTimeChanged(ActualTimePropertyHandle);
@@ -183,6 +189,8 @@ void FSpawnListEntryCustomization::CustomizeHeader(TSharedRef<IPropertyHandle> P
 	ClassToSpawnPropertyHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateSP(this, &FSpawnListEntryCustomization::OnClassToSpawnChanged, ClassToSpawnPropertyHandle));
 	TimePropertyHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateSP(this, &FSpawnListEntryCustomization::OnTimeChanged, TimePropertyHandle));
 	CountPropertyHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateSP(this, &FSpawnListEntryCustomization::OnCountChanged, CountPropertyHandle));
+	//ConditionalPropertyHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateSP(this, &FSpawnListEntryCustomization::OnConditionalChanged, ConditionalPropertyHandle));
+	ConditionalActorsPropertyHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateSP(this, &FSpawnListEntryCustomization::OnConditionalChanged, ConditionalActorsPropertyHandle));
 	ClassNamePropertyHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateSP(this, &FSpawnListEntryCustomization::OnClassNameChanged, ClassNamePropertyHandle));
 	ActualCountPropertyHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateSP(this, &FSpawnListEntryCustomization::OnActualCountChanged, ActualCountPropertyHandle));
 	ActualTimePropertyHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateSP(this, &FSpawnListEntryCustomization::OnActualTimeChanged, ActualTimePropertyHandle));
@@ -194,6 +202,8 @@ void FSpawnListEntryCustomization::CustomizeChildren(TSharedRef<IPropertyHandle>
 	ChildBuilder.AddProperty(ClassToSpawnPropertyHandle.ToSharedRef());
 	ChildBuilder.AddProperty(TimePropertyHandle.ToSharedRef());
 	ChildBuilder.AddProperty(CountPropertyHandle.ToSharedRef());
+	ChildBuilder.AddProperty(ConditionalActorsPropertyHandle.ToSharedRef());
+	//ChildBuilder.AddProperty(ConditionalPropertyHandle.ToSharedRef());
 	//ChildBuilder.AddProperty(ClassNamePropertyHandle.ToSharedRef());
 	//ChildBuilder.AddProperty(ActualCountPropertyHandle.ToSharedRef());
 	//ChildBuilder.AddProperty(ActualTimePropertyHandle.ToSharedRef());
@@ -220,6 +230,22 @@ void FSpawnListEntryCustomization::OnCountChanged(TSharedPtr<IPropertyHandle> Pr
 	if (PropertyHandle.IsValid() && PropertyHandle->IsValidHandle())
 	{
 		PropertyHandle->GetValueAsDisplayText(CountText);
+	}
+}
+
+void FSpawnListEntryCustomization::OnConditionalChanged(TSharedPtr<IPropertyHandle> PropertyHandle)
+{
+	if (PropertyHandle.IsValid() && PropertyHandle->IsValidHandle())
+	{
+		PropertyHandle->GetValueAsDisplayText(ConditionalText);
+	}
+}
+
+void FSpawnListEntryCustomization::OnConditionalActorsChanged(TSharedPtr<IPropertyHandle> PropertyHandle)
+{
+	if (PropertyHandle.IsValid() && PropertyHandle->IsValidHandle())
+	{
+		PropertyHandle->GetValueAsDisplayText(ConditionalActorsText);
 	}
 }
 

@@ -52,9 +52,13 @@ void FSpawnCountCustomization::CustomizeHeader(TSharedRef<IPropertyHandle> Prope
 				[
 					SNew(SHorizontalBox)
 					+SHorizontalBox::Slot()
-					.FillWidth(1.f)
+					.AutoWidth()
 					[
-						PropertyHandle_Count->CreatePropertyNameWidget()
+						SNew(SBox)
+						.MinDesiredWidth(72.f)
+						[
+							PropertyHandle_Count->CreatePropertyNameWidget()
+						]
 					]
 					+SHorizontalBox::Slot()
 					.FillWidth(1.f)

@@ -6,6 +6,7 @@
 #include "UObject/Interface.h"
 #include "SpawnerInterface.generated.h"
 
+class USpawnConditionObject;
 class USpawnShape;
 
 UENUM(BlueprintType)
@@ -26,7 +27,7 @@ struct FSpawnTime
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner, meta=(ClampMin=0.01, Delta=0.01, Units="Seconds"))
 	float Delay = 0.2f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, DisplayName="Scatter", Category=Spawner, meta=(ClampMin=0, Delta=0.01, Units="Seconds"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, DisplayName="Scatter", Category=Spawner, meta=(ClampMin=0, Delta=0.01, ForceUnits="Seconds"))
 	float RandomTimeScatter = 0.f;
 
 	float Get() const { return Delay + FMath::RandRange(0.f, RandomTimeScatter); }
@@ -87,6 +88,47 @@ struct FSpawnCount
 	}
 };
 
+UENUM(BlueprintType)
+enum class ESpawnConditionalValueMode : uint8
+{
+	Probability,
+	EachIndex,
+	Custom,
+};
+
+USTRUCT(BlueprintType)
+struct SPAWNER_API FSpawnConditionalActorListEntry
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner)
+	TSoftClassPtr<AActor> ActorClass;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner)
+	ESpawnConditionalValueMode ValueMode;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner, meta=(ClampMin=0.01, ClampMax=1.0))
+	float Probability = 0.5f;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner, meta=(ClampMin=1))
+	int32 EachIndex = 1;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Instanced, Category=Spawner)
+	TObjectPtr<USpawnConditionObject> CustomCondition;
+};
+
+USTRUCT(BlueprintType)
+struct SPAWNER_API FSpawnConditional
+{
+	GENERATED_BODY()
+
+	FSpawnConditional() {}
+	FSpawnConditional(const TArray<FSpawnConditionalActorListEntry>& InActors) : Actors(InActors) {}
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner)
+	TArray<FSpawnConditionalActorListEntry> Actors;
+};
+
 USTRUCT(BlueprintType)
 struct SPAWNER_API FSpawnListEntry
 {
@@ -100,6 +142,13 @@ struct SPAWNER_API FSpawnListEntry
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner)
 	FSpawnCount Count;
+
+	/**
+	 * Array of actors that can spawn (with a specified probability) each time actor of the ClassToSpawn class is spawned.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner, DisplayName="Conditionally Spawned Actors", meta=(ShowOnlyInnerProperties))
+	TArray<FSpawnConditionalActorListEntry> ConditionalActors;
+	// TODO: Replace with:	FSpawnConditional Conditional;
 
 #if WITH_EDITORONLY_DATA	
 	/**
@@ -201,6 +250,9 @@ struct FSpawnArgs
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner)
 	ESpawnActorCollisionHandlingMethod CollisionHandlingMethod = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+
+	UPROPERTY()
+	FSpawnListEntry Entry;
 };
 
 USTRUCT(BlueprintType)
@@ -213,6 +265,27 @@ struct FSpawnSnapToSurfaceSettings
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner)
 	TEnumAsByte<ECollisionChannel> CollisionChannel = ECC_Visibility;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner)
+	bool bPushToRandomNavigableLocation = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner)
+	bool bUseRadiusAsSearchRadius = false;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner, meta=(EditCondition="!bUseRadiusAsSearchRadius"))
+	float NavigableLocationSearchRadius = 512.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner)
+	bool bCorrectUsingNavProjection = true;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner, meta=(EditCondition="bCorrectUsingNavProjection"))
+	bool bRandomizeNavProjectionTargetLocation = true;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner, meta=(EditCondition="bRandomizeNavProjectionTargetLocation"))
+	float CorrectionRandomTargetLocationRadius = 64.f;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner)
+	bool bAddCapsuleHalfHeight = false;
 };
 
 /*
@@ -234,6 +307,12 @@ struct FSpawnShapeSettings
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Instanced)
 	TObjectPtr<USpawnShape> SpawnShape = nullptr;
+};
+
+USTRUCT(BlueprintType)
+struct FSpawnBehaviorSettings
+{
+	GENERATED_BODY()
 };
 
 /*USTRUCT(BlueprintType)

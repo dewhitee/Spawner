@@ -23,10 +23,14 @@ public:
 #endif
 
 	void SetAtLocation(FVector AtLocation);
+
+	float GetRadius() const;
 	void SetRadius(float Radius);
 
 	FSpawnStartArgs GetSpawnSettings() const;
 	void SetSpawnSettings(const FSpawnStartArgs& InSpawnSettings);
+
+	void SnapToSurfaceParameterized(FVector& OutLocation, bool& bShouldSkip) const;
 
 private:
 	UPROPERTY(EditAnywhere, Category=Spawner, meta=(DisplayAfter="SpawnedActors"))

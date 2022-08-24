@@ -45,14 +45,16 @@ void FSpawnTimeCustomization::CustomizeHeader(TSharedRef<IPropertyHandle> Proper
 			.AutoHeight()
 			[
 				SNew(SBox)
-				//.MinDesiredWidth(240.f)
-				//.Padding(0.f)
 				[
 					SNew(SHorizontalBox)
 					+SHorizontalBox::Slot()
-					.FillWidth(1.f)
+					.AutoWidth()
 					[
-						DelayPropertyHandle->CreatePropertyNameWidget()
+						SNew(SBox)
+						.MinDesiredWidth(72.f)
+						[
+							DelayPropertyHandle->CreatePropertyNameWidget()
+						]
 					]
 					+SHorizontalBox::Slot()
 					.FillWidth(1.f)
@@ -65,14 +67,16 @@ void FSpawnTimeCustomization::CustomizeHeader(TSharedRef<IPropertyHandle> Proper
 			.AutoHeight()
 			[
 				SNew(SBox)
-				//.MinDesiredWidth(240.f)
-				//.Padding(0.f)
 				[
 					SNew(SHorizontalBox)
 					+SHorizontalBox::Slot()
-					.FillWidth(1.f)
+					.AutoWidth()
 					[
-						RandomTimeScatterPropertyHandle->CreatePropertyNameWidget()
+						SNew(SBox)
+						.MinDesiredWidth(72.f)
+						[
+							RandomTimeScatterPropertyHandle->CreatePropertyNameWidget()
+						]
 					]
 					+SHorizontalBox::Slot()
 					.FillWidth(1.f)
