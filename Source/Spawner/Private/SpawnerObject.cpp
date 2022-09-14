@@ -469,7 +469,7 @@ void USpawnerObject::SnapToSurface(FVector& OutLocation, bool& bShouldSkip, cons
 				// Do nothing if we are already on a valid navmesh
 				return;
 			}
-			else
+			else if (Args.bDrawDebug)
 			{
 				DrawDebugPoint(GetWorld(), OutLocation, 90.f, FColor::Black, false, 10.f);
 			}
