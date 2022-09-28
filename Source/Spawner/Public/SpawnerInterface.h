@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Engine/DataTable.h"
 #include "UObject/Interface.h"
 #include "SpawnerInterface.generated.h"
 
@@ -24,10 +25,10 @@ struct FSpawnTime
 {
 	GENERATED_BODY()
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner, meta=(ClampMin=0.01, Delta=0.01, Units="Seconds"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner, meta=(ClampMin=0.01, Delta=0.01, ForceUnits="s"))
 	float Delay = 0.2f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, DisplayName="Scatter", Category=Spawner, meta=(ClampMin=0, Delta=0.01, ForceUnits="Seconds"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, DisplayName="Scatter", Category=Spawner, meta=(ClampMin=0, Delta=0.01, ForceUnits="s"))
 	float RandomTimeScatter = 0.f;
 
 	float Get() const { return Delay + FMath::RandRange(0.f, RandomTimeScatter); }
@@ -190,6 +191,21 @@ struct SPAWNER_API FSpawnListEntry
 	{
 		return ClassToSpawn == Rhs.ClassToSpawn && Time == Rhs.Time && Count == Rhs.Count;
 	}
+};
+
+USTRUCT(BlueprintType)
+struct SPAWNER_API FSpawnListEntryTableRow : public FTableRowBase
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere)
+	TSoftClassPtr<AActor> ClassToSpawn;
+
+	UPROPERTY(EditAnywhere, meta=(ClampMin=0.01, Delta=0.01, ForceUnits="s"))
+	float Delay = 0.2f;
+
+	UPROPERTY(EditAnywhere)
+	int32 ExactCount = 10;
 };
 
 USTRUCT(BlueprintType)
