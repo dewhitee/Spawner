@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "ScalableFloat.h"
 #include "SpawnerObject.h"
 #include "Engine/DataAsset.h"
 #include "SpawnListPreset.generated.h"
@@ -15,7 +16,20 @@ enum class ESpawnListPresetDataSource : uint8
 	CurveTable
 };
 
+/*USTRUCT(BlueprintType)
+struct FSpawnListCurveTableEntry
+{
+	GENERATED_BODY()
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner)
+	TSoftClassPtr<AActor> ClassToSpawn;
+
+	UPROPERTY(EditAnywhere)
+	FScalableFloat CountOverTime;
+};*/
+
 class UDataTable;
+
 /**
  * 
  */
@@ -42,13 +56,19 @@ private:
 	UPROPERTY(EditAnywhere, Category=Spawner)
 	ESpawnListPresetDataSource DataSource;
 	
-	UPROPERTY(EditAnywhere, Category=Spawner, meta=(EditCondition="DataSource == ESpawnListPresetDataSource::DataTable", EditConditionHides))
+	UPROPERTY(EditAnywhere, Category="Spawner Data Table", meta=(EditCondition="DataSource == ESpawnListPresetDataSource::DataTable", EditConditionHides))
 	TSoftObjectPtr<UDataTable> DataTable;
 
-	UPROPERTY(EditAnywhere, Category=Spawner, meta=(EditCondition="DataSource == ESpawnListPresetDataSource::CurveTable", EditConditionHides))
+	UPROPERTY(EditAnywhere, Category="Spawner Curve Table", meta=(EditCondition="DataSource == ESpawnListPresetDataSource::CurveTable", EditConditionHides))
 	TSoftObjectPtr<UCurveTable> CurveTable;
+
+	UPROPERTY(EditAnywhere, Category="Spawner Curve Table", meta=(EditCondition="DataSource == ESpawnListPresetDataSource::CurveTable", EditConditionHides))
+	bool bRefreshCurveTableEntries = true;
+
+	UPROPERTY(EditAnywhere, Category="Spawner Curve Table", meta=(EditCondition="DataSource == ESpawnListPresetDataSource::CurveTable", EditConditionHides))
+	TMap<TSoftClassPtr<AActor>, FScalableFloat> CurveTableEntries;
 	
-	UPROPERTY(EditAnywhere, BlueprintGetter=GetSpawnList, Category=Spawner, meta=(TitleProperty="{ClassName}: Count={ActualCount}, Time={ActualTime}, TotalTime={TotalTime}"))
+	UPROPERTY(EditAnywhere, BlueprintGetter=GetSpawnList, Category=Spawner, meta=(EditCondition="DataSource == ESpawnListPresetDataSource::Default", TitleProperty="{ClassName}: Count={ActualCount}, Time={ActualTime}, TotalTime={TotalTime}"))
 	TArray<FSpawnListEntry> SpawnList;
 	
 };

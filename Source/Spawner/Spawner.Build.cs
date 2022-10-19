@@ -25,7 +25,7 @@ public class Spawner : ModuleRules
 		PublicDependencyModuleNames.AddRange(
 			new string[]
 			{
-				"Core", "Engine",
+				"Core", "Engine", "GameplayAbilities",
 				// ... add other public dependencies that you statically link with here ...
 			}
 			);

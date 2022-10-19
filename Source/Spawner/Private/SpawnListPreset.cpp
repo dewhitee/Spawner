@@ -26,6 +26,31 @@ void USpawnListPreset::PostEditChangeProperty(FPropertyChangedEvent& PropertyCha
 			Stats.AddFromEntry(Entry);
 			Entry.SetEditorOnlyDisplayData();
 		}
+
+		switch (DataSource)
+		{
+		case ESpawnListPresetDataSource::Default:
+			break;
+			
+		case ESpawnListPresetDataSource::DataTable:
+			break;
+			
+		// Curve table entries update
+		case ESpawnListPresetDataSource::CurveTable:
+			if (!bRefreshCurveTableEntries || !CurveTable.LoadSynchronous())
+			{
+				break;
+			}
+			
+			for (auto& Entry : CurveTableEntries)
+			{
+				//Entry.Value.SetValue(1.f);
+				Entry.Value.Curve.CurveTable = CurveTable.Get();
+			}
+			break;
+			
+		default: ;
+		}
 	}
 	
 	Super::PostEditChangeProperty(PropertyChangedEvent);
