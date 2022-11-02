@@ -73,6 +73,16 @@ void USpawnerObject::PostLoad()
 	SetEditorOnlySpawnListData();
 }
 
+void USpawnerObject::Tick(float DeltaTime)
+{
+	PassedTime += DeltaTime;
+}
+
+TStatId USpawnerObject::GetStatId() const
+{
+	return TStatId();
+}
+
 #if WITH_EDITOR
 void USpawnerObject::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
@@ -94,118 +104,32 @@ void USpawnerObject::Start_Implementation(const FSpawnStartArgs& Args)
 		return;
 	}
 
-	if (SpawnListPreset.LoadSynchronous())
-	{
-		SpawnList = SpawnListPreset->GetSpawnList();
-	}
-
 	if (Args.bUseRadiusAsSpawnEnabledRadius)
 	{
 		Args.SpawnEnabledRadius = Args.Radius;
 	}
-	
-	Delegate.BindLambda([&, Args]()
+
+	if (SpawnListPreset.LoadSynchronous())
 	{
-		UE_LOG(LogSpawner, Verbose, TEXT("%s: Calling spawn lambda: CurrentIndex=%d, SpawnList.Num()=%d"), *GetName(), CurrentIndex, SpawnList.Num());
-		const FSpawnListEntry& Entry = SpawnList[CurrentIndex];
-		if (!Entry.ClassToSpawn.LoadSynchronous())
-		{
-			const FString Msg = FString::Printf(TEXT("SpawnerObject: ClassToSpawn is not specified in SpawnList[%d]. Aborting spawn."), CurrentIndex);
-			UE_LOG(LogSpawner, Error, TEXT("%s"), *Msg);
-
-#if WITH_EDITOR
-			if (const AActor* OuterActor = GetTypedOuter<AActor>())
-			{
-				FMessageLog PIELogger = FMessageLog(FName("PIE"));
-				const auto TokenizedMsg = FTokenizedMessage::Create(EMessageSeverity::Warning)
-					->AddToken(FActorToken::Create(OuterActor->GetPathName(), OuterActor->GetActorGuid(), FText::FromString(OuterActor->GetActorNameOrLabel())))
-					->AddToken(FTextToken::Create(FText::FromString(Msg)));
-
-				if (SpawnListPreset.LoadSynchronous())
-				{
-					TokenizedMsg
-						->AddToken(FTextToken::Create(FText::FromString(" - Check set spawn list preset:")))
-						->AddToken(FUObjectToken::Create(SpawnListPreset.Get()));
-				}
-				
-				TokenizedMsg->SetIdentifier(this->GetFName());
-				PIELogger.AddMessage(TokenizedMsg);
-				PIELogger.Open();
-				//PIELogger.Notify(FText::FromString("Problem found with spawner!"), EMessageSeverity::Warning, true);
-			}
-#endif
-			return;
-		}
+		SpawnList = SpawnListPreset->GetSpawnList();
 		
-		if (/*CurrentCount*/GetSpawnedCount(Entry.ClassToSpawn.Get(), CurrentIndex) < Entry.Count.Get())
+		switch (SpawnListPreset->GetDataSource())
 		{
-			FSpawnArgs SpawnArgs;
-			SpawnArgs.ClassToSpawn = Entry.ClassToSpawn.Get();
-				
-			bool bShouldSkip = false;
-			SpawnArgs.AtLocation = GetSpawnLocation(Args, bShouldSkip);
-			if (Args.SnapToSurfaceSettings.bSkipIfStillNotOnSurface && bShouldSkip)
-			{
-				UE_LOG(LogSpawner, Warning, TEXT("%s: Spawn of %s is skipped because surface not found under target location."),
-					*GetName(), *Entry.ClassToSpawn->GetName());
-				return;
-			}
-				
-			SpawnArgs.CollisionHandlingMethod = Args.CollisionHandlingMethod;
-			SpawnArgs.Entry = Entry;
-
-			switch (Args.SpawnMode)
-			{
-			case ESpawnMode::None:
-				break;
-					
-			case ESpawnMode::SpawnAlways:
-				Execute_Spawn(this, SpawnArgs);
-				break;
-					
-			case ESpawnMode::SpawnWhenPlayerIsNear:
-				{
-					const APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(this, 0);
-					check(PlayerPawn != nullptr);
-					const float Distance = FVector::Dist(PlayerPawn->GetActorLocation(), SpawnArgs.AtLocation);
-					if (Distance < Args.SpawnEnabledRadius)
-					{
-						Execute_Spawn(this, SpawnArgs);
-					}
-					break;
-				}	
-					
-			default: ;
-			}
+		case ESpawnListPresetDataSource::Default:
+			StartDefault(Args);
+			break;
+		case ESpawnListPresetDataSource::DataTable:
+			StartUsingDataTable(Args);
+			break;
+		case ESpawnListPresetDataSource::CurveTable:
+			StartUsingCurveTable(Args);
+			break;
+		default: ;
 		}
-		else // Spawning next actor in SpawnList
-		{
-			FTimerManager& TimerManager = GetWorld()->GetTimerManager();
-			TimerManager.ClearTimer(SpawnTimerHandle);
-			//CurrentCount_DEPRECATED = 0;
-			if (SpawnList.IsValidIndex(++CurrentIndex))
-			{
-				const FSpawnListEntry& NextEntry = SpawnList[CurrentIndex];
-				TimerManager.SetTimer(SpawnTimerHandle, Delegate, NextEntry.Time.Get(), true);
-			}
-			else if (Args.bRespawnAfter) // Respawning from the start
-			{
-				UE_LOG(LogSpawner, Verbose, TEXT("%s: Respawning from the start."), *GetName());
-				CurrentIndex = 0;
-				const FSpawnListEntry& NextEntry = SpawnList[CurrentIndex];
-				TimerManager.SetTimer(SpawnTimerHandle, Delegate, NextEntry.Time.Get(), true);
-			}
-		}
-	});
-
-	if (SpawnList.IsValidIndex(CurrentIndex))
-	{
-		const FSpawnListEntry& Entry = SpawnList[CurrentIndex];
-		GetWorld()->GetTimerManager().SetTimer(SpawnTimerHandle, Delegate, Entry.Time.Get(), true);
 	}
 	else
 	{
-		// TODO: Log out of bounds
+		StartDefault(Args);
 	}
 }
 
@@ -218,92 +142,17 @@ void USpawnerObject::Stop_Implementation()
 
 AActor* USpawnerObject::Spawn_Implementation(const FSpawnArgs& Args)
 {
-	UE_LOG(LogSpawner, Log, TEXT("%s: Spawning new %s"), *GetName(), *Args.ClassToSpawn->GetName());
-	FActorSpawnParameters SpawnParams;
-	SpawnParams.SpawnCollisionHandlingOverride = Args.CollisionHandlingMethod;
-	AActor* SpawnedActor = GetWorld()->SpawnActor(Args.ClassToSpawn, &Args.AtLocation, &Args.AtRotation, SpawnParams);
-	if (SpawnedActor)
+	if (SpawnListPreset.IsValid())
 	{
-		//CurrentCount_DEPRECATED++;
-		OnSpawn.Broadcast(SpawnedActor, Args);
-#if WITH_EDITOR
-		UE_LOG(LogSpawner, Log, TEXT("%s: %s was spawned at %s location"), *GetName(), *SpawnedActor->GetActorNameOrLabel(),
-			*Args.AtLocation.ToCompactString());
-#endif
-
-		AddNewSpawnedActor(SpawnedActor, CurrentIndex);
-		SpawnedActor->OnDestroyed.AddDynamic(this, &USpawnerObject::OnSpawnedActorDestroyed);
-
-		if (ISpawnedActorInterface* Interface = Cast<ISpawnedActorInterface>(SpawnedActor))
+		switch (SpawnListPreset->GetDataSource())
 		{
-			UE_LOG(LogSpawner, Log, TEXT("%s: Setting spawner object of %s actor to this."), *GetName(), *SpawnedActor->GetActorNameOrLabel());
-			Interface->SetSpawnerObject(this);
-		}
-		else
-		{
-			UE_LOG(LogSpawner, Warning, TEXT("%s: %s does not implement ISpawnedActorInterface!"), *GetName(), *SpawnedActor->GetActorNameOrLabel());
-		}
-
-		if (!Args.Entry.ConditionalActors.IsEmpty())
-		{
-			const int32 CurrentSpawnedCount = GetSpawnedCount(Args.ClassToSpawn, CurrentIndex);
-			const int32 TotalSpawnedCount = GetTotalSpawnedCount();
-
-			int32 Index = 0;
-			for (const FSpawnConditionalActorListEntry& ConditionalActor : Args.Entry.ConditionalActors)
-			{
-				switch (ConditionalActor.ValueMode)
-				{
-				case ESpawnConditionalValueMode::Probability:
-					if (UKismetMathLibrary::RandomBoolWithWeight(ConditionalActor.Probability))
-					{
-						GetWorld()->SpawnActor(ConditionalActor.ActorClass.LoadSynchronous(), &Args.AtLocation, &Args.AtRotation, SpawnParams);
-					}
-					break;
-				case ESpawnConditionalValueMode::EachIndex:
-					if (CurrentSpawnedCount % ConditionalActor.EachIndex == 0)
-					{
-						GetWorld()->SpawnActor(ConditionalActor.ActorClass.LoadSynchronous(), &Args.AtLocation, &Args.AtRotation, SpawnParams);
-					}
-					break;
-				case ESpawnConditionalValueMode::Custom:
-					if (ConditionalActor.CustomCondition && ConditionalActor.CustomCondition->CanSpawn(
-						ConditionalActor.ActorClass.LoadSynchronous(), SpawnedActor, CurrentIndex, CurrentSpawnedCount, TotalSpawnedCount))
-					{
-						GetWorld()->SpawnActor(ConditionalActor.ActorClass.LoadSynchronous(), &Args.AtLocation, &Args.AtRotation, SpawnParams);
-					}
-					else if (!ConditionalActor.CustomCondition)
-					{
-						const FString Msg = FString::Printf(TEXT("%s: SpawnList[%d] entry ConditionalActors[%d] CustomCondition property is not set."), *GetName(), CurrentIndex, Index);
-						UE_LOG(LogSpawner, Error, TEXT("%s"), *Msg);
-#if WITH_EDITOR
-						if (const AActor* OuterActor = GetTypedOuter<AActor>())
-						{
-							FMessageLog PIELogger = FMessageLog(FName("PIE"));
-							const auto TokenizedMsg = FTokenizedMessage::Create(EMessageSeverity::Warning)
-								->AddToken(FActorToken::Create(OuterActor->GetPathName(), OuterActor->GetActorGuid(), FText::FromString(OuterActor->GetActorNameOrLabel())))
-								->AddToken(FTextToken::Create(FText::FromString(Msg)));
-
-							if (SpawnListPreset.LoadSynchronous())
-							{
-								TokenizedMsg
-									->AddToken(FTextToken::Create(FText::FromString(" - Check set spawn list preset:")))
-									->AddToken(FUObjectToken::Create(SpawnListPreset.Get()));
-							}
-					
-							TokenizedMsg->SetIdentifier(this->GetFName());
-							PIELogger.AddMessage(TokenizedMsg);
-							PIELogger.Open();
-						}
-#endif
-					}
-				default: ;
-				}
-				Index++;
-			}
+		case ESpawnListPresetDataSource::Default:		return SpawnDefault(Args);
+		case ESpawnListPresetDataSource::DataTable:		return SpawnUsingDataTable(Args);
+		case ESpawnListPresetDataSource::CurveTable:	return SpawnUsingCurveTable(Args);
+		default: ;
 		}
 	}
-	return SpawnedActor;
+	return SpawnDefault(Args);
 }
 
 AActor* USpawnerObject::Respawn_Implementation(const FSpawnArgs& Args)
@@ -590,4 +439,357 @@ int32 USpawnerObject::GetTotalSpawnedCount() const
 		OutCount += Entry.SpawnedActors.Num();
 	}
 	return OutCount;
+}
+
+void USpawnerObject::StartDefault(const FSpawnStartArgs& Args)
+{
+	/*if (SpawnListPreset.LoadSynchronous())
+	{
+		SpawnList = SpawnListPreset->GetSpawnList();
+	}*/
+
+	/*if (Args.bUseRadiusAsSpawnEnabledRadius)
+	{
+		Args.SpawnEnabledRadius = Args.Radius;
+	}*/
+	
+	Delegate.BindLambda([&, Args]()
+	{
+		UE_LOG(LogSpawner, Verbose, TEXT("%s: Calling spawn lambda: CurrentIndex=%d, SpawnList.Num()=%d"), *GetName(), CurrentIndex, SpawnList.Num());
+		const FSpawnListEntry& Entry = SpawnList[CurrentIndex];
+		if (!Entry.ClassToSpawn.LoadSynchronous())
+		{
+			const FString Msg = FString::Printf(TEXT("SpawnerObject: ClassToSpawn is not specified in SpawnList[%d]. Aborting spawn."), CurrentIndex);
+			UE_LOG(LogSpawner, Error, TEXT("%s"), *Msg);
+
+#if WITH_EDITOR
+			if (const AActor* OuterActor = GetTypedOuter<AActor>())
+			{
+				FMessageLog PIELogger = FMessageLog(FName("PIE"));
+				const auto TokenizedMsg = FTokenizedMessage::Create(EMessageSeverity::Warning)
+					->AddToken(FActorToken::Create(OuterActor->GetPathName(), OuterActor->GetActorGuid(), FText::FromString(OuterActor->GetActorNameOrLabel())))
+					->AddToken(FTextToken::Create(FText::FromString(Msg)));
+
+				if (SpawnListPreset.LoadSynchronous())
+				{
+					TokenizedMsg
+						->AddToken(FTextToken::Create(FText::FromString(" - Check set spawn list preset:")))
+						->AddToken(FUObjectToken::Create(SpawnListPreset.Get()));
+				}
+				
+				TokenizedMsg->SetIdentifier(this->GetFName());
+				PIELogger.AddMessage(TokenizedMsg);
+				PIELogger.Open();
+				//PIELogger.Notify(FText::FromString("Problem found with spawner!"), EMessageSeverity::Warning, true);
+			}
+#endif
+			return;
+		}
+		
+		if (/*CurrentCount*/GetSpawnedCount(Entry.ClassToSpawn.Get(), CurrentIndex) < Entry.Count.Get())
+		{
+			FSpawnArgs SpawnArgs;
+			SpawnArgs.ClassToSpawn = Entry.ClassToSpawn.Get();
+				
+			bool bShouldSkip = false;
+			SpawnArgs.AtLocation = GetSpawnLocation(Args, bShouldSkip);
+			if (Args.SnapToSurfaceSettings.bSkipIfStillNotOnSurface && bShouldSkip)
+			{
+				UE_LOG(LogSpawner, Warning, TEXT("%s: Spawn of %s is skipped because surface not found under target location."),
+					*GetName(), *Entry.ClassToSpawn->GetName());
+				return;
+			}
+				
+			SpawnArgs.CollisionHandlingMethod = Args.CollisionHandlingMethod;
+			SpawnArgs.Entry = Entry;
+
+			switch (Args.SpawnMode)
+			{
+			case ESpawnMode::None:
+				break;
+					
+			case ESpawnMode::SpawnAlways:
+				Execute_Spawn(this, SpawnArgs);
+				break;
+					
+			case ESpawnMode::SpawnWhenPlayerIsNear:
+				{
+					const APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(this, 0);
+					check(PlayerPawn != nullptr);
+					const float Distance = FVector::Dist(PlayerPawn->GetActorLocation(), SpawnArgs.AtLocation);
+					if (Distance < Args.SpawnEnabledRadius)
+					{
+						Execute_Spawn(this, SpawnArgs);
+					}
+					break;
+				}	
+					
+			default: ;
+			}
+		}
+		else // Spawning next actor in SpawnList
+		{
+			FTimerManager& TimerManager = GetWorld()->GetTimerManager();
+			TimerManager.ClearTimer(SpawnTimerHandle);
+			//CurrentCount_DEPRECATED = 0;
+			if (SpawnList.IsValidIndex(++CurrentIndex))
+			{
+				const FSpawnListEntry& NextEntry = SpawnList[CurrentIndex];
+				TimerManager.SetTimer(SpawnTimerHandle, Delegate, NextEntry.Time.Get(), true);
+			}
+			else if (Args.bRespawnAfter) // Respawning from the start
+			{
+				UE_LOG(LogSpawner, Verbose, TEXT("%s: Respawning from the start."), *GetName());
+				CurrentIndex = 0;
+				const FSpawnListEntry& NextEntry = SpawnList[CurrentIndex];
+				TimerManager.SetTimer(SpawnTimerHandle, Delegate, NextEntry.Time.Get(), true);
+			}
+		}
+	});
+
+	if (SpawnList.IsValidIndex(CurrentIndex))
+	{
+		const FSpawnListEntry& Entry = SpawnList[CurrentIndex];
+		GetWorld()->GetTimerManager().SetTimer(SpawnTimerHandle, Delegate, Entry.Time.Get(), true);
+	}
+	else
+	{
+		// TODO: Log out of bounds
+	}
+}
+
+void USpawnerObject::StartUsingDataTable(const FSpawnStartArgs& Args)
+{
+	unimplemented();
+}
+
+void USpawnerObject::StartUsingCurveTable(const FSpawnStartArgs& Args)
+{
+	Delegate.BindLambda([&, Args]()
+	{
+		UE_LOG(LogSpawner, Verbose, TEXT("%s: Calling spawn lambda: CurrentIndex=%d, SpawnList.Num()=%d"), *GetName(), CurrentIndex, SpawnList.Num());
+		const FSpawnListEntry& Entry = SpawnList[CurrentIndex];
+		if (!Entry.ClassToSpawn.LoadSynchronous())
+		{
+			const FString Msg = FString::Printf(TEXT("SpawnerObject: ClassToSpawn is not specified in SpawnList[%d]. Aborting spawn."), CurrentIndex);
+			UE_LOG(LogSpawner, Error, TEXT("%s"), *Msg);
+
+#if WITH_EDITOR
+			if (const AActor* OuterActor = GetTypedOuter<AActor>())
+			{
+				FMessageLog PIELogger = FMessageLog(FName("PIE"));
+				const auto TokenizedMsg = FTokenizedMessage::Create(EMessageSeverity::Warning)
+					->AddToken(FActorToken::Create(OuterActor->GetPathName(), OuterActor->GetActorGuid(), FText::FromString(OuterActor->GetActorNameOrLabel())))
+					->AddToken(FTextToken::Create(FText::FromString(Msg)));
+
+				if (SpawnListPreset.LoadSynchronous())
+				{
+					TokenizedMsg
+						->AddToken(FTextToken::Create(FText::FromString(" - Check set spawn list preset:")))
+						->AddToken(FUObjectToken::Create(SpawnListPreset.Get()));
+				}
+				
+				TokenizedMsg->SetIdentifier(this->GetFName());
+				PIELogger.AddMessage(TokenizedMsg);
+				PIELogger.Open();
+				//PIELogger.Notify(FText::FromString("Problem found with spawner!"), EMessageSeverity::Warning, true);
+			}
+#endif
+			return;
+		}
+		
+		if (/*CurrentCount*/GetSpawnedCount(Entry.ClassToSpawn.Get(), CurrentIndex) < Entry.Count.Get())
+		{
+			FSpawnArgs SpawnArgs;
+			SpawnArgs.ClassToSpawn = Entry.ClassToSpawn.Get();
+				
+			bool bShouldSkip = false;
+			SpawnArgs.AtLocation = GetSpawnLocation(Args, bShouldSkip);
+			if (Args.SnapToSurfaceSettings.bSkipIfStillNotOnSurface && bShouldSkip)
+			{
+				UE_LOG(LogSpawner, Warning, TEXT("%s: Spawn of %s is skipped because surface not found under target location."),
+					*GetName(), *Entry.ClassToSpawn->GetName());
+				return;
+			}
+				
+			SpawnArgs.CollisionHandlingMethod = Args.CollisionHandlingMethod;
+			SpawnArgs.Entry = Entry;
+
+			switch (Args.SpawnMode)
+			{
+			case ESpawnMode::None:
+				break;
+					
+			case ESpawnMode::SpawnAlways:
+				Execute_Spawn(this, SpawnArgs);
+				break;
+					
+			case ESpawnMode::SpawnWhenPlayerIsNear:
+				{
+					const APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(this, 0);
+					check(PlayerPawn != nullptr);
+					const float Distance = FVector::Dist(PlayerPawn->GetActorLocation(), SpawnArgs.AtLocation);
+					if (Distance < Args.SpawnEnabledRadius)
+					{
+						Execute_Spawn(this, SpawnArgs);
+					}
+					break;
+				}	
+					
+			default: ;
+			}
+		}
+		else // Spawning next actor in SpawnList
+		{
+			FTimerManager& TimerManager = GetWorld()->GetTimerManager();
+			TimerManager.ClearTimer(SpawnTimerHandle);
+			//CurrentCount_DEPRECATED = 0;
+			if (SpawnList.IsValidIndex(++CurrentIndex))
+			{
+				const FSpawnListEntry& NextEntry = SpawnList[CurrentIndex];
+				TimerManager.SetTimer(SpawnTimerHandle, Delegate, NextEntry.Time.Get(), true);
+			}
+			else if (Args.bRespawnAfter) // Respawning from the start
+			{
+				UE_LOG(LogSpawner, Verbose, TEXT("%s: Respawning from the start."), *GetName());
+				CurrentIndex = 0;
+				const FSpawnListEntry& NextEntry = SpawnList[CurrentIndex];
+				TimerManager.SetTimer(SpawnTimerHandle, Delegate, NextEntry.Time.Get(), true);
+			}
+		}
+	});
+
+	if (SpawnList.IsValidIndex(CurrentIndex))
+	{
+		const FSpawnListEntry& Entry = SpawnList[CurrentIndex];
+		GetWorld()->GetTimerManager().SetTimer(SpawnTimerHandle, Delegate, Entry.Time.Get(), true);
+	}
+	else
+	{
+		// TODO: Log out of bounds
+	}
+}
+
+AActor* USpawnerObject::SpawnDefault(const FSpawnArgs& Args)
+{
+	UE_LOG(LogSpawner, Log, TEXT("%s: Spawning new %s"), *GetName(), *Args.ClassToSpawn->GetName());
+	FActorSpawnParameters SpawnParams;
+	SpawnParams.SpawnCollisionHandlingOverride = Args.CollisionHandlingMethod;
+	AActor* SpawnedActor = GetWorld()->SpawnActor(Args.ClassToSpawn, &Args.AtLocation, &Args.AtRotation, SpawnParams);
+	if (SpawnedActor)
+	{
+		//CurrentCount_DEPRECATED++;
+		OnSpawn.Broadcast(SpawnedActor, Args);
+#if WITH_EDITOR
+		UE_LOG(LogSpawner, Log, TEXT("%s: %s was spawned at %s location"), *GetName(), *SpawnedActor->GetActorNameOrLabel(),
+			*Args.AtLocation.ToCompactString());
+#endif
+
+		AddNewSpawnedActor(SpawnedActor, CurrentIndex);
+		SpawnedActor->OnDestroyed.AddDynamic(this, &USpawnerObject::OnSpawnedActorDestroyed);
+
+		if (ISpawnedActorInterface* Interface = Cast<ISpawnedActorInterface>(SpawnedActor))
+		{
+			UE_LOG(LogSpawner, Log, TEXT("%s: Setting spawner object of %s actor to this."), *GetName(), *SpawnedActor->GetActorNameOrLabel());
+			Interface->SetSpawnerObject(this);
+		}
+		else
+		{
+			UE_LOG(LogSpawner, Warning, TEXT("%s: %s does not implement ISpawnedActorInterface!"), *GetName(), *SpawnedActor->GetActorNameOrLabel());
+		}
+
+		if (!Args.Entry.ConditionalActors.IsEmpty())
+		{
+			const int32 CurrentSpawnedCount = GetSpawnedCount(Args.ClassToSpawn, CurrentIndex);
+			const int32 TotalSpawnedCount = GetTotalSpawnedCount();
+
+			int32 Index = 0;
+			for (const FSpawnConditionalActorListEntry& ConditionalActor : Args.Entry.ConditionalActors)
+			{
+				switch (ConditionalActor.ValueMode)
+				{
+				case ESpawnConditionalValueMode::Probability:
+					if (UKismetMathLibrary::RandomBoolWithWeight(ConditionalActor.Probability))
+					{
+						GetWorld()->SpawnActor(ConditionalActor.ActorClass.LoadSynchronous(), &Args.AtLocation, &Args.AtRotation, SpawnParams);
+					}
+					break;
+				case ESpawnConditionalValueMode::EachIndex:
+					if (CurrentSpawnedCount % ConditionalActor.EachIndex == 0)
+					{
+						GetWorld()->SpawnActor(ConditionalActor.ActorClass.LoadSynchronous(), &Args.AtLocation, &Args.AtRotation, SpawnParams);
+					}
+					break;
+				case ESpawnConditionalValueMode::Custom:
+					if (ConditionalActor.CustomCondition && ConditionalActor.CustomCondition->CanSpawn(
+						ConditionalActor.ActorClass.LoadSynchronous(), SpawnedActor, CurrentIndex, CurrentSpawnedCount, TotalSpawnedCount))
+					{
+						GetWorld()->SpawnActor(ConditionalActor.ActorClass.LoadSynchronous(), &Args.AtLocation, &Args.AtRotation, SpawnParams);
+					}
+					else if (!ConditionalActor.CustomCondition)
+					{
+						const FString Msg = FString::Printf(TEXT("%s: SpawnList[%d] entry ConditionalActors[%d] CustomCondition property is not set."), *GetName(), CurrentIndex, Index);
+						UE_LOG(LogSpawner, Error, TEXT("%s"), *Msg);
+#if WITH_EDITOR
+						if (const AActor* OuterActor = GetTypedOuter<AActor>())
+						{
+							FMessageLog PIELogger = FMessageLog(FName("PIE"));
+							const auto TokenizedMsg = FTokenizedMessage::Create(EMessageSeverity::Warning)
+								->AddToken(FActorToken::Create(OuterActor->GetPathName(), OuterActor->GetActorGuid(), FText::FromString(OuterActor->GetActorNameOrLabel())))
+								->AddToken(FTextToken::Create(FText::FromString(Msg)));
+
+							if (SpawnListPreset.LoadSynchronous())
+							{
+								TokenizedMsg
+									->AddToken(FTextToken::Create(FText::FromString(" - Check set spawn list preset:")))
+									->AddToken(FUObjectToken::Create(SpawnListPreset.Get()));
+							}
+					
+							TokenizedMsg->SetIdentifier(this->GetFName());
+							PIELogger.AddMessage(TokenizedMsg);
+							PIELogger.Open();
+						}
+#endif
+					}
+				default: ;
+				}
+				Index++;
+			}
+		}
+	}
+	return SpawnedActor;
+}
+
+AActor* USpawnerObject::SpawnUsingDataTable(const FSpawnArgs& Args)
+{
+	unimplemented();
+	return nullptr;
+}
+
+AActor* USpawnerObject::SpawnUsingCurveTable(const FSpawnArgs& Args)
+{
+	UE_LOG(LogSpawner, Log, TEXT("%s: Spawning new %s"), *GetName(), *Args.ClassToSpawn->GetName());
+	FActorSpawnParameters SpawnParams;
+	SpawnParams.SpawnCollisionHandlingOverride = Args.CollisionHandlingMethod;
+
+	const float CurrentTime = GetCurrentTime();
+	unimplemented();
+	return nullptr;
+}
+
+float USpawnerObject::GetCurrentCurveTableTime() const
+{
+	/*if (SpawnListPreset.IsValid()
+		&& SpawnListPreset->GetDataSource() == ESpawnListPresetDataSource::CurveTable
+		&& SpawnListPreset->GetCurveTable())
+	{
+		return SpawnListPreset->GetCurveTable()->GetC
+	}*/
+	unimplemented();
+	return 0.f;
+}
+
+float USpawnerObject::GetCurrentTime() const
+{
+	return PassedTime;
 }

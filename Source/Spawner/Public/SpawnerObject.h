@@ -23,7 +23,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnSpawnerStop);
  * 
  */
 UCLASS(BlueprintType, Blueprintable, DefaultToInstanced, EditInlineNew, CollapseCategories, DisplayName="Spawner")
-class SPAWNER_API USpawnerObject : public UObject, public ISpawnerInterface
+class SPAWNER_API USpawnerObject : public UObject, public ISpawnerInterface, public FTickableGameObject
 {
 	GENERATED_BODY()
 
@@ -34,6 +34,10 @@ public:
 	virtual UWorld* GetWorld() const override;
 	virtual void BeginDestroy() override;
 	virtual void PostLoad() override;
+
+	// FTickableGameObject
+	virtual void Tick(float DeltaTime) override;
+	virtual TStatId GetStatId() const override;
 
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
@@ -89,7 +93,19 @@ private:
 	
 	int32 GetSpawnedCount(const TSubclassOf<AActor>& Spawned, int32 Index) const;
 	int32 GetTotalSpawnedCount() const;
+
+	void StartDefault(const FSpawnStartArgs& Args);
+	void StartUsingDataTable(const FSpawnStartArgs& Args);
+	void StartUsingCurveTable(const FSpawnStartArgs& Args);
 	
+	AActor* SpawnDefault(const FSpawnArgs& Args);
+	AActor* SpawnUsingDataTable(const FSpawnArgs& Args);
+	AActor* SpawnUsingCurveTable(const FSpawnArgs& Args);
+
+	float GetCurrentCurveTableTime() const;
+	float GetCurrentTime() const;
+
+private:
 	UPROPERTY(EditAnywhere, Category=Spawner)
 	bool bSpawnEnabled;
 	
@@ -110,6 +126,14 @@ private:
 
 	UPROPERTY(VisibleAnywhere, Category=Spawner, AdvancedDisplay)
 	TArray<FSpawnedListEntry> SpawnedActors;
+
+	/**
+	 * Is calculated in the Tick method or on each spawn based on the chosen mode (default/data table/curve table)
+	 * - By default: Is incremented by DeltaTime in spawner's Tick method.
+	 * - TODO: Curve table: CurveTableTickRate is used to increment passed time;
+	 */
+	UPROPERTY(VisibleAnywhere)
+	float PassedTime;
 
 	FTimerHandle SpawnTimerHandle;
 	FTimerDelegate Delegate;

@@ -42,6 +42,10 @@ public:
 	UFUNCTION(BlueprintGetter, Category=Spawner)
 	TArray<FSpawnListEntry> GetSpawnList() const { return SpawnList; }
 
+	ESpawnListPresetDataSource GetDataSource() const { return DataSource; }
+	UCurveTable* GetCurveTable() const;
+	float GetCurveTableTickRate() const;
+
 protected:
 	virtual void PostLoad() override;
 
@@ -55,10 +59,12 @@ private:
 
 	UPROPERTY(EditAnywhere, Category=Spawner)
 	ESpawnListPresetDataSource DataSource;
-	
+
+	// Data table
 	UPROPERTY(EditAnywhere, Category="Spawner Data Table", meta=(EditCondition="DataSource == ESpawnListPresetDataSource::DataTable", EditConditionHides))
 	TSoftObjectPtr<UDataTable> DataTable;
 
+	// Curve table
 	UPROPERTY(EditAnywhere, Category="Spawner Curve Table", meta=(EditCondition="DataSource == ESpawnListPresetDataSource::CurveTable", EditConditionHides))
 	TSoftObjectPtr<UCurveTable> CurveTable;
 
@@ -66,8 +72,12 @@ private:
 	bool bRefreshCurveTableEntries = true;
 
 	UPROPERTY(EditAnywhere, Category="Spawner Curve Table", meta=(EditCondition="DataSource == ESpawnListPresetDataSource::CurveTable", EditConditionHides))
+	float CurveTableTickRate = 1.f;
+
+	UPROPERTY(EditAnywhere, Category="Spawner Curve Table", meta=(EditCondition="DataSource == ESpawnListPresetDataSource::CurveTable", EditConditionHides))
 	TMap<TSoftClassPtr<AActor>, FScalableFloat> CurveTableEntries;
-	
+
+	// Default
 	UPROPERTY(EditAnywhere, BlueprintGetter=GetSpawnList, Category=Spawner, meta=(EditCondition="DataSource == ESpawnListPresetDataSource::Default", TitleProperty="{ClassName}: Count={ActualCount}, Time={ActualTime}, TotalTime={TotalTime}"))
 	TArray<FSpawnListEntry> SpawnList;
 	

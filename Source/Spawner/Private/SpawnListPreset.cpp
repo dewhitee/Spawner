@@ -3,6 +3,16 @@
 
 #include "SpawnListPreset.h"
 
+UCurveTable* USpawnListPreset::GetCurveTable() const
+{
+	return CurveTable.LoadSynchronous();
+}
+
+float USpawnListPreset::GetCurveTableTickRate() const
+{
+	return CurveTableTickRate;
+}
+
 void USpawnListPreset::PostLoad()
 {
 	Super::PostLoad();
