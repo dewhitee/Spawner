@@ -672,7 +672,7 @@ void USpawnerObject::StartUsingCurveTable(const FSpawnStartArgs& Args)
 
 AActor* USpawnerObject::SpawnDefault(const FSpawnArgs& Args)
 {
-	UE_LOG(LogSpawner, Log, TEXT("%s: Spawning new %s"), *GetName(), *Args.ClassToSpawn->GetName());
+	UE_LOG(LogSpawner, Verbose, TEXT("%s: Spawning new %s"), *GetName(), *Args.ClassToSpawn->GetName());
 	FActorSpawnParameters SpawnParams;
 	SpawnParams.SpawnCollisionHandlingOverride = Args.CollisionHandlingMethod;
 	AActor* SpawnedActor = GetWorld()->SpawnActor(Args.ClassToSpawn, &Args.AtLocation, &Args.AtRotation, SpawnParams);
@@ -681,7 +681,7 @@ AActor* USpawnerObject::SpawnDefault(const FSpawnArgs& Args)
 		//CurrentCount_DEPRECATED++;
 		OnSpawn.Broadcast(SpawnedActor, Args);
 #if WITH_EDITOR
-		UE_LOG(LogSpawner, Log, TEXT("%s: %s was spawned at %s location"), *GetName(), *SpawnedActor->GetActorNameOrLabel(),
+		UE_LOG(LogSpawner, Verbose, TEXT("%s: %s was spawned at %s location"), *GetName(), *SpawnedActor->GetActorNameOrLabel(),
 			*Args.AtLocation.ToCompactString());
 #endif
 
@@ -690,7 +690,7 @@ AActor* USpawnerObject::SpawnDefault(const FSpawnArgs& Args)
 
 		if (ISpawnedActorInterface* Interface = Cast<ISpawnedActorInterface>(SpawnedActor))
 		{
-			UE_LOG(LogSpawner, Log, TEXT("%s: Setting spawner object of %s actor to this."), *GetName(), *SpawnedActor->GetActorNameOrLabel());
+			UE_LOG(LogSpawner, Verbose, TEXT("%s: Setting spawner object of %s actor to this."), *GetName(), *SpawnedActor->GetActorNameOrLabel());
 			Interface->SetSpawnerObject(this);
 		}
 		else
