@@ -161,6 +161,11 @@ AActor* USpawnerObject::Respawn_Implementation(const FSpawnArgs& Args)
 	return nullptr;
 }
 
+bool USpawnerObject::IsRunning() const
+{
+	return GetWorld()->GetTimerManager().IsTimerActive(SpawnTimerHandle);
+}
+
 bool USpawnerObject::IsSpawnEnabled() const
 {
 	return bSpawnEnabled;

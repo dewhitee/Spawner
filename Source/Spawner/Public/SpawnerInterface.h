@@ -106,7 +106,7 @@ struct SPAWNER_API FSpawnConditionalActorListEntry
 	TSoftClassPtr<AActor> ActorClass;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner)
-	ESpawnConditionalValueMode ValueMode;
+	ESpawnConditionalValueMode ValueMode = ESpawnConditionalValueMode::Probability;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner, meta=(ClampMin=0.01, ClampMax=1.0))
 	float Probability = 0.5f;
@@ -115,7 +115,7 @@ struct SPAWNER_API FSpawnConditionalActorListEntry
 	int32 EachIndex = 1;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Instanced, Category=Spawner)
-	TObjectPtr<USpawnConditionObject> CustomCondition;
+	TObjectPtr<USpawnConditionObject> CustomCondition = nullptr;
 };
 
 USTRUCT(BlueprintType)
@@ -454,4 +454,5 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category=Spawner)
 	AActor* Respawn(const FSpawnArgs& Args);
 	
+	virtual bool IsRunning() const = 0;
 };

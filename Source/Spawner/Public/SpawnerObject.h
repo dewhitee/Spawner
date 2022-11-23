@@ -48,6 +48,7 @@ public:
 	virtual void Stop_Implementation() override;
 	virtual AActor* Spawn_Implementation(const FSpawnArgs& Args) override;
 	virtual AActor* Respawn_Implementation(const FSpawnArgs& Args) override;
+	virtual bool IsRunning() const override;
 
 	UFUNCTION(BlueprintCallable, Category=Spawner)
 	bool IsSpawnEnabled() const;
