@@ -30,7 +30,7 @@ void USpawnerFunctionLibrary::PushToSpawn(UParameterizedSpawnerObject* Spawner, 
 		
 		Spawner->SnapToSurfaceParameterized(NewLoc, bShouldSkip);
 		
-		UE_LOG(LogSpawner, Log, TEXT("USpawnerFunctionLibrary::PushToSpawn: Pushed %s location from %s to %s"),
+		UE_LOG(LogSpawner, Verbose, TEXT("USpawnerFunctionLibrary::PushToSpawn: Pushed %s location from %s to %s"),
 			*ActorToPush->GetActorNameOrLabel(),
 			*ActorToPush->GetActorLocation().ToCompactString(),
 			*NewLoc.ToCompactString());

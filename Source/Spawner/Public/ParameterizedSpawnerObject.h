@@ -30,6 +30,8 @@ public:
 	FSpawnStartArgs GetSpawnSettings() const;
 	void SetSpawnSettings(const FSpawnStartArgs& InSpawnSettings);
 
+	void SetRespawnAfter(bool bValue);
+
 	void SnapToSurfaceParameterized(FVector& OutLocation, bool& bShouldSkip) const;
 
 private:

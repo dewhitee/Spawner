@@ -53,6 +53,11 @@ void UParameterizedSpawnerObject::SetSpawnSettings(const FSpawnStartArgs& InSpaw
 	SpawnSettings = InSpawnSettings;
 }
 
+void UParameterizedSpawnerObject::SetRespawnAfter(bool bValue)
+{
+	SpawnSettings.bRespawnAfter = bValue;
+}
+
 void UParameterizedSpawnerObject::SnapToSurfaceParameterized(FVector& OutLocation, bool& bShouldSkip) const
 {
 	SnapToSurface(OutLocation, bShouldSkip, SpawnSettings);
