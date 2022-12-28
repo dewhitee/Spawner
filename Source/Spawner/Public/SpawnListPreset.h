@@ -78,7 +78,7 @@ private:
 	TMap<TSoftClassPtr<AActor>, FScalableFloat> CurveTableEntries;
 
 	// Default
-	UPROPERTY(EditAnywhere, BlueprintGetter=GetSpawnList, Category=Spawner, meta=(EditCondition="DataSource == ESpawnListPresetDataSource::Default", TitleProperty="{ClassName}: Count={ActualCount}, Time={ActualTime}, TotalTime={TotalTime}"))
+	UPROPERTY(EditAnywhere, BlueprintGetter=GetSpawnList, Category=Spawner, meta=(EditCondition="DataSource == ESpawnListPresetDataSource::Default", TitleProperty="{ClassName}: Count={ActualCount}, Time={ActualTime}, TotalTime={TotalTime}, PostSpawnDelay={ActualPostSpawnData}"))
 	TArray<FSpawnListEntry> SpawnList;
 	
 };

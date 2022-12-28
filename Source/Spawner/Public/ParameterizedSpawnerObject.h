@@ -31,6 +31,9 @@ public:
 	void SetSpawnSettings(const FSpawnStartArgs& InSpawnSettings);
 
 	void SetRespawnAfter(bool bValue);
+	void SetSpawnedActorOwner(AActor* InOwner);
+	void SetSpawnedActorInstigator(APawn* InInstigator);
+	void SetSpawnDeferred(bool bValue);
 
 	void SnapToSurfaceParameterized(FVector& OutLocation, bool& bShouldSkip) const;
 

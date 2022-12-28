@@ -89,6 +89,15 @@ struct FSpawnCount
 	}
 };
 
+USTRUCT(BlueprintType)
+struct FPostSpawnData
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner, meta=(ClampMin=0.01, Delta=0.01, ForceUnits="s"))
+	float Delay = 0.f;
+};
+
 UENUM(BlueprintType)
 enum class ESpawnConditionalValueMode : uint8
 {
@@ -151,6 +160,9 @@ struct SPAWNER_API FSpawnListEntry
 	TArray<FSpawnConditionalActorListEntry> ConditionalActors;
 	// TODO: Replace with:	FSpawnConditional Conditional;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner)
+	FPostSpawnData PostSpawnData;
+
 #if WITH_EDITORONLY_DATA	
 	/**
 	 * Name of the class with no path information to on array entry. Only for display in TitleProperty meta specifier.
@@ -183,6 +195,14 @@ struct SPAWNER_API FSpawnListEntry
 	 */
 	UPROPERTY(VisibleAnywhere)
 	FName TotalTime;
+
+	/**
+	 * Actual total spawn time string. Only for display in TitleProperty meta specifier.
+	 * 
+	 * @warning Do not access outside of WITH_EDITOR
+	 */
+	UPROPERTY(VisibleAnywhere)
+	FName ActualPostSpawnData;
 #endif
 
 	void SetEditorOnlyDisplayData();
@@ -236,8 +256,8 @@ struct SPAWNER_API FSpawnedListEntry
 {
 	GENERATED_BODY()
 
-	FSpawnedListEntry() : Index(0) {}
-	FSpawnedListEntry(int32 InIndex, AActor* InActor) : Index(InIndex), SpawnedActors({InActor}) {}
+	FSpawnedListEntry() : Index(0), SpawnedCount(0) {}
+	FSpawnedListEntry(int32 InIndex, AActor* InActor) : Index(InIndex), SpawnedActors({InActor}), SpawnedCount(1) {}
 	TSubclassOf<AActor> GetClass() const
 	{
 		return SpawnedActors.IsEmpty() ? nullptr : SpawnedActors[0]->GetClass();
@@ -248,27 +268,12 @@ struct SPAWNER_API FSpawnedListEntry
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category=Spawned)
 	TArray<TObjectPtr<AActor>> SpawnedActors;
-};
 
-USTRUCT(BlueprintType)
-struct FSpawnArgs
-{
-	GENERATED_BODY()
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner)
-	TSubclassOf<AActor> ClassToSpawn;
-	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner)
-	FVector AtLocation = FVector::ZeroVector;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner)
-	FRotator AtRotation = FRotator::ZeroRotator;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner)
-	ESpawnActorCollisionHandlingMethod CollisionHandlingMethod = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
-
-	UPROPERTY()
-	FSpawnListEntry Entry;
+	/**
+	 * Will be used instead of SpawnedActors array if 
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category=Spawned)
+	int32 SpawnedCount;
 };
 
 USTRUCT(BlueprintType)
@@ -330,6 +335,22 @@ struct FSpawnBehaviorSettings
 {
 	GENERATED_BODY()
 };
+
+UENUM(BlueprintType)
+enum class ESpawnCountCalculationMode : uint8
+{
+	CurrentActorCount,
+	EverSpawnedActorCount
+};
+
+/*USTRUCT(BlueprintType)
+struct FSpawnCountSettings
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	ESpawnCountCalculationMode CountCalculationMode;
+};*/
 
 /*USTRUCT(BlueprintType)
 struct FSpawnRadiusSettings
@@ -418,12 +439,72 @@ struct FSpawnStartArgs
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner)
 	FSpawnShapeSettings SpawnShapeSettings;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner)
+	bool bSetActorOwner = false;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner, meta=(EditCondition="bSetActorOwner"))
+	TObjectPtr<AActor> SpawnedActorOwner = nullptr;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner)
+	bool bSetActorInstigator = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner, meta=(EditCondition="bSetActorInstigator"))
+	TObjectPtr<APawn> SpawnedActorInstigator = nullptr;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner)
+	bool bDeferSpawn = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner)
+	ESpawnCountCalculationMode CountCalculationMode;
 	
 	/**
 	 * Should actors be respawned after if they were destroyed?
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner)
 	bool bRespawnAfter = true;
+};
+
+USTRUCT(BlueprintType)
+struct FSpawnArgs
+{
+	GENERATED_BODY()
+
+	FSpawnArgs() {}
+	FSpawnArgs(const FSpawnStartArgs& InArgs, FVector InLocation, const FSpawnListEntry& InEntry);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner)
+	TSubclassOf<AActor> ClassToSpawn;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner)
+	FVector AtLocation = FVector::ZeroVector;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner)
+	FRotator AtRotation = FRotator::ZeroRotator;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner)
+	ESpawnActorCollisionHandlingMethod CollisionHandlingMethod = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner)
+	bool bSetActorOwner = false;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner, meta=(EditCondition="bSetActorOwner"))
+	TObjectPtr<AActor> SpawnedActorOwner = nullptr;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner)
+	bool bSetActorInstigator = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner, meta=(EditCondition="bSetActorInstigator"))
+	TObjectPtr<APawn> SpawnedActorInstigator = nullptr;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner)
+	bool bDeferSpawn = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner)
+	ESpawnCountCalculationMode CountCalculationMode = ESpawnCountCalculationMode::CurrentActorCount;
+
+	UPROPERTY()
+	FSpawnListEntry Entry;
 };
 
 // This class does not need to be modified.

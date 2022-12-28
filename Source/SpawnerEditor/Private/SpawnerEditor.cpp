@@ -1,5 +1,6 @@
 ﻿#include "SpawnerEditor.h"
 
+#include "PostSpawnDataCustomization.h"
 #include "SpawnConditionalActorListEntryCustomization.h"
 #include "SpawnConditionalCustomization.h"
 #include "SpawnCountCustomization.h"
@@ -19,6 +20,7 @@ void FSpawnerEditorModule::StartupModule()
 	PropertyModule.RegisterCustomPropertyTypeLayout(FSpawnListEntry::StaticStruct()->GetFName(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(FSpawnListEntryCustomization::MakeInstance));
 	PropertyModule.RegisterCustomPropertyTypeLayout(FSpawnConditionalActorListEntry::StaticStruct()->GetFName(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(FSpawnConditionalActorListEntryCustomization::MakeInstance));
 	PropertyModule.RegisterCustomPropertyTypeLayout(FSpawnConditional::StaticStruct()->GetFName(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(FSpawnConditionalCustomization::MakeInstance));
+	PropertyModule.RegisterCustomPropertyTypeLayout(FPostSpawnData::StaticStruct()->GetFName(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(FPostSpawnDataCustomization::MakeInstance));
 	PropertyModule.NotifyCustomizationModuleChanged();
 }
 
@@ -32,6 +34,7 @@ void FSpawnerEditorModule::ShutdownModule()
 		PropertyModule.UnregisterCustomPropertyTypeLayout(FSpawnListEntry::StaticStruct()->GetFName());
 		PropertyModule.UnregisterCustomPropertyTypeLayout(FSpawnConditionalActorListEntry::StaticStruct()->GetFName());
 		PropertyModule.UnregisterCustomPropertyTypeLayout(FSpawnConditional::StaticStruct()->GetFName());
+		PropertyModule.UnregisterCustomPropertyTypeLayout(FPostSpawnData::StaticStruct()->GetFName());
 		PropertyModule.NotifyCustomizationModuleChanged();
 	}
 }

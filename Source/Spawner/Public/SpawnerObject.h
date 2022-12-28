@@ -15,6 +15,8 @@ struct FRespawnListEntry_DEPRECATED
 };
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnSpawn, AActor*, SpawnedActor, const FSpawnArgs&, Args);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnDeferredSpawn, AActor*, SpawningActor, const FSpawnArgs&, Args);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnSpawnerIndexUpdated, int32, NewIndex, const FSpawnListEntry&, NewEntry);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnPreSpawn);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnSpawnerStart);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnSpawnerStop);
@@ -64,18 +66,9 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category=Spawner)
 	void SetEditorOnlySpawnListData();
-	
-	UPROPERTY(BlueprintAssignable, Category=Spawner)
-	FOnSpawn OnSpawn;
-	
-	UPROPERTY(BlueprintAssignable, Category=Spawner)
-	FOnPreSpawn OnPreSpawn;
 
-	UPROPERTY(BlueprintAssignable, Category=Spawner)
-	FOnSpawnerStop OnStop;
-	
-	UPROPERTY(BlueprintAssignable, Category=Spawner)
-	FOnSpawnerStart OnStart;
+	UFUNCTION(BlueprintGetter)
+	int32 GetCurrentIndex() const { return CurrentIndex; }
 
 protected:
 	void SnapToSurface(FVector& OutLocation, bool& bShouldSkip, const FSpawnStartArgs& Args) const;
@@ -92,7 +85,7 @@ private:
 	UFUNCTION()
 	void OnSpawnedActorDestroyed(AActor* SpawnedActor);
 	
-	int32 GetSpawnedCount(const TSubclassOf<AActor>& Spawned, int32 Index) const;
+	int32 GetSpawnedCount(const TSubclassOf<AActor> Spawned, int32 Index, ESpawnCountCalculationMode CountCalculationMode) const;
 	int32 GetTotalSpawnedCount() const;
 
 	void StartDefault(const FSpawnStartArgs& Args);
@@ -106,6 +99,25 @@ private:
 	float GetCurrentCurveTableTime() const;
 	float GetCurrentTime() const;
 
+public:
+	UPROPERTY(BlueprintAssignable, Category=Spawner)
+	FOnSpawn OnSpawn;
+
+	UPROPERTY(BlueprintAssignable, Category=Spawner)
+	FOnDeferredSpawn OnDeferredSpawn;
+	
+	UPROPERTY(BlueprintAssignable, Category=Spawner)
+	FOnPreSpawn OnPreSpawn;
+
+	UPROPERTY(BlueprintAssignable, Category=Spawner)
+	FOnSpawnerStop OnStop;
+	
+	UPROPERTY(BlueprintAssignable, Category=Spawner)
+	FOnSpawnerStart OnStart;
+
+	UPROPERTY(BlueprintAssignable, Category=Spawner)
+	FOnSpawnerIndexUpdated OnIndexUpdated;
+	
 private:
 	UPROPERTY(EditAnywhere, Category=Spawner)
 	bool bSpawnEnabled;
@@ -119,7 +131,7 @@ private:
 	UPROPERTY(EditAnywhere, Category=Spawner)
 	TSoftObjectPtr<USpawnListPreset> SpawnListPreset;
 
-	UPROPERTY(VisibleDefaultsOnly, Category=Spawner, AdvancedDisplay)
+	UPROPERTY(VisibleDefaultsOnly, BlueprintGetter=GetCurrentIndex, Category=Spawner, AdvancedDisplay)
 	int32 CurrentIndex;
 
 	UPROPERTY(/*VisibleAnywhere, Category=Spawner*/)
