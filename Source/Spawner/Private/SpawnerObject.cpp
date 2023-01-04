@@ -392,8 +392,10 @@ void USpawnerObject::AddNewSpawnedActor(AActor* SpawnedActor, int32 Index)
 	{
 		if (Entry.Index == Index)
 		{
-			Entry.SpawnedActors.AddUnique(SpawnedActor);
-			Entry.SpawnedCount++;
+			Entry.AddSpawnedActor(SpawnedActor);
+			/*Entry.SpawnedActors.AddUnique(SpawnedActor);
+			Entry.SpawnedActorClass = SpawnedActor->GetClass();
+			Entry.SpawnedCount++;*/
 			return;
 		}
 	}
@@ -441,6 +443,8 @@ void USpawnerObject::OnSpawnedActorDestroyed(AActor* SpawnedActor)
 int32 USpawnerObject::GetSpawnedCount(const TSubclassOf<AActor> Spawned, int32 Index, ESpawnCountCalculationMode CountCalculationMode) const
 {
 	check(Spawned);
+	check(IsValid(Spawned));
+	check(IsValid(this));
 	for (const FSpawnedListEntry& Entry : SpawnedActors)
 	{
 		if (Entry.Index == Index && Entry.GetClass() == Spawned)
@@ -468,7 +472,7 @@ int32 USpawnerObject::GetTotalSpawnedCount() const
 
 void USpawnerObject::StartDefault(const FSpawnStartArgs& Args)
 {
-	Delegate.BindLambda([&, Args]()
+	/*Delegate.BindLambda([&, Args]()
 	{
 		UE_LOG(LogSpawner, Verbose, TEXT("%s: Calling spawn lambda: CurrentIndex=%d, SpawnList.Num()=%d"), *GetName(), CurrentIndex, SpawnList.Num());
 		const FSpawnListEntry& Entry = SpawnList[CurrentIndex];
@@ -501,7 +505,7 @@ void USpawnerObject::StartDefault(const FSpawnStartArgs& Args)
 			return;
 		}
 		
-		if (/*CurrentCount*/GetSpawnedCount(Entry.ClassToSpawn.Get(), CurrentIndex, Args.CountCalculationMode) < Entry.Count.Get())
+		if (/*CurrentCount#1#GetSpawnedCount(Entry.ClassToSpawn.Get(), CurrentIndex, Args.CountCalculationMode) < Entry.Count.Get())
 		{
 			bool bShouldSkip = false;
 			//const FSpawnArgs SpawnArgs(Args, GetSpawnLocation(Args, bShouldSkip), Entry);
@@ -569,8 +573,10 @@ void USpawnerObject::StartDefault(const FSpawnStartArgs& Args)
 				TimerManager.SetTimer(SpawnTimerHandle, Delegate, NextEntry.Time.Get(), true);
 			}
 		}
-	});
+	});*/
 
+	Delegate = FTimerDelegate::CreateUObject(this, &USpawnerObject::DefaultSpawnTick, Args);
+	//Delegate.BindUObject(this, &USpawnerObject::DefaultSpawnTick, Args);
 	if (SpawnList.IsValidIndex(CurrentIndex))
 	{
 		const FSpawnListEntry& Entry = SpawnList[CurrentIndex];
@@ -579,6 +585,115 @@ void USpawnerObject::StartDefault(const FSpawnStartArgs& Args)
 	else
 	{
 		// TODO: Log out of bounds
+	}
+}
+
+void USpawnerObject::DefaultSpawnTick(const FSpawnStartArgs Args)
+{
+	UE_LOG(LogSpawner, Verbose, TEXT("%s: Calling spawn lambda: CurrentIndex=%d, SpawnList.Num()=%d"), *GetName(), CurrentIndex, SpawnList.Num());
+	const FSpawnListEntry& Entry = SpawnList[CurrentIndex];
+	if (!Entry.ClassToSpawn.LoadSynchronous())
+	{
+		const FString Msg = FString::Printf(TEXT("SpawnerObject: ClassToSpawn is not specified in SpawnList[%d]. Aborting spawn."), CurrentIndex);
+		UE_LOG(LogSpawner, Error, TEXT("%s"), *Msg);
+
+#if WITH_EDITOR
+		if (const AActor* OuterActor = GetTypedOuter<AActor>())
+		{
+			FMessageLog PIELogger = FMessageLog(FName("PIE"));
+			const auto TokenizedMsg = FTokenizedMessage::Create(EMessageSeverity::Warning)
+				->AddToken(FActorToken::Create(OuterActor->GetPathName(), OuterActor->GetActorGuid(), FText::FromString(OuterActor->GetActorNameOrLabel())))
+				->AddToken(FTextToken::Create(FText::FromString(Msg)));
+
+			if (SpawnListPreset.LoadSynchronous())
+			{
+				TokenizedMsg
+					->AddToken(FTextToken::Create(FText::FromString(" - Check set spawn list preset:")))
+					->AddToken(FUObjectToken::Create(SpawnListPreset.Get()));
+			}
+			
+			TokenizedMsg->SetIdentifier(this->GetFName());
+			PIELogger.AddMessage(TokenizedMsg);
+			PIELogger.Open();
+			//PIELogger.Notify(FText::FromString("Problem found with spawner!"), EMessageSeverity::Warning, true);
+		}
+#endif
+		return;
+	}
+	
+	if (/*CurrentCount*/GetSpawnedCount(Entry.ClassToSpawn.Get(), CurrentIndex, Args.CountCalculationMode) < Entry.Count.Get())
+	{
+		bool bShouldSkip = false;
+		//const FSpawnArgs SpawnArgs(Args, GetSpawnLocation(Args, bShouldSkip), Entry);
+		FSpawnArgs SpawnArgs;
+		SpawnArgs.ClassToSpawn = Entry.ClassToSpawn.Get();
+		SpawnArgs.bSetActorOwner = Args.bSetActorOwner;
+		SpawnArgs.SpawnedActorOwner = Args.SpawnedActorOwner;
+		SpawnArgs.bSetActorInstigator = Args.bSetActorInstigator;
+		SpawnArgs.SpawnedActorInstigator = Args.SpawnedActorInstigator;
+		SpawnArgs.bDeferSpawn = Args.bDeferSpawn;
+		SpawnArgs.CountCalculationMode = Args.CountCalculationMode;
+		
+		SpawnArgs.AtLocation = GetSpawnLocation(Args, bShouldSkip);
+		if (Args.SnapToSurfaceSettings.bSkipIfStillNotOnSurface && bShouldSkip)
+		{
+			UE_LOG(LogSpawner, Warning, TEXT("%s: Spawn of %s is skipped because surface not found under target location."),
+				*GetName(), *Entry.ClassToSpawn->GetName());
+			return;
+		}
+			
+		SpawnArgs.CollisionHandlingMethod = Args.CollisionHandlingMethod;
+		SpawnArgs.Entry = Entry;
+
+		switch (Args.SpawnMode)
+		{
+		case ESpawnMode::None:
+			break;
+				
+		case ESpawnMode::SpawnAlways:
+			Execute_Spawn(this, SpawnArgs);
+			break;
+				
+		case ESpawnMode::SpawnWhenPlayerIsNear:
+			{
+				const APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(this, 0);
+				check(PlayerPawn != nullptr);
+				const float Distance = FVector::Dist(PlayerPawn->GetActorLocation(), SpawnArgs.AtLocation);
+				if (Distance < Args.SpawnEnabledRadius)
+				{
+					Execute_Spawn(this, SpawnArgs);
+				}
+				break;
+			}	
+				
+		default: ;
+		}
+	}
+	else // Spawning next actor in SpawnList
+	{
+		FTimerManager& TimerManager = GetWorld()->GetTimerManager();
+		TimerManager.ClearTimer(SpawnTimerHandle);
+		//CurrentCount_DEPRECATED = 0;
+		if (SpawnList.IsValidIndex(++CurrentIndex))
+		{
+			const FSpawnListEntry& NextEntry = SpawnList[CurrentIndex];
+			OnIndexUpdated.Broadcast(CurrentIndex, NextEntry);
+			if (Delegate.IsBound())
+			{
+				TimerManager.SetTimer(SpawnTimerHandle, Delegate, NextEntry.Time.Get(), true);
+			}
+		}
+		else if (Args.bRespawnAfter) // Respawning from the start
+		{
+			UE_LOG(LogSpawner, Verbose, TEXT("%s: Respawning from the start."), *GetName());
+			CurrentIndex = 0;
+			const FSpawnListEntry& NextEntry = SpawnList[CurrentIndex];
+			OnIndexUpdated.Broadcast(CurrentIndex, NextEntry);
+			if (Delegate.IsBound())
+			{
+				TimerManager.SetTimer(SpawnTimerHandle, Delegate, NextEntry.Time.Get(), true);
+			}
+		}
 	}
 }
 

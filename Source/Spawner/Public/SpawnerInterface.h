@@ -260,7 +260,16 @@ struct SPAWNER_API FSpawnedListEntry
 	FSpawnedListEntry(int32 InIndex, AActor* InActor) : Index(InIndex), SpawnedActors({InActor}), SpawnedCount(1) {}
 	TSubclassOf<AActor> GetClass() const
 	{
-		return SpawnedActors.IsEmpty() ? nullptr : SpawnedActors[0]->GetClass();
+		return /*SpawnedActors.IsEmpty() || !IsValid(SpawnedActors[0]) ? nullptr : SpawnedActors[0]->GetClass()*/SpawnedActorClass;
+	}
+	void AddSpawnedActor(AActor* NewActor)
+	{
+		if (!SpawnedActorClass)
+		{
+			SpawnedActorClass = NewActor->GetClass();
+		}
+		SpawnedActors.AddUnique(NewActor);
+		SpawnedCount++;
 	}
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category=Spawned)
@@ -268,6 +277,9 @@ struct SPAWNER_API FSpawnedListEntry
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category=Spawned)
 	TArray<TObjectPtr<AActor>> SpawnedActors;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category=Spawned)
+	TSubclassOf<AActor> SpawnedActorClass;
 
 	/**
 	 * Will be used instead of SpawnedActors array if 

@@ -89,6 +89,7 @@ private:
 	int32 GetTotalSpawnedCount() const;
 
 	void StartDefault(const FSpawnStartArgs& Args);
+	void DefaultSpawnTick(const FSpawnStartArgs Args); // Pass by copy, because FTimerDelegate does not allow refs
 	void StartUsingDataTable(const FSpawnStartArgs& Args);
 	void StartUsingCurveTable(const FSpawnStartArgs& Args);
 	
