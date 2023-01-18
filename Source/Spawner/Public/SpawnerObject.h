@@ -65,6 +65,9 @@ public:
 	void SetSpawnList(const TArray<FSpawnListEntry>& Entries);
 
 	UFUNCTION(BlueprintCallable, Category=Spawner)
+	void SetSpawnListPreset(USpawnListPreset* NewPreset);
+
+	UFUNCTION(BlueprintCallable, Category=Spawner)
 	void SetEditorOnlySpawnListData();
 
 	UFUNCTION(BlueprintGetter)

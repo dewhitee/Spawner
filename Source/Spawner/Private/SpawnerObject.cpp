@@ -199,6 +199,11 @@ void USpawnerObject::SetSpawnList(const TArray<FSpawnListEntry>& Entries)
 	SpawnList = Entries;
 }
 
+void USpawnerObject::SetSpawnListPreset(USpawnListPreset* NewPreset)
+{
+	SpawnListPreset = NewPreset;
+}
+
 void USpawnerObject::SetEditorOnlySpawnListData()
 {
 	for (FSpawnListEntry& Entry : SpawnList)
