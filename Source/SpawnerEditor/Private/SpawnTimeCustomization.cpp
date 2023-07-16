@@ -35,7 +35,7 @@ void FSpawnTimeCustomization::CustomizeHeader(TSharedRef<IPropertyHandle> Proper
 	.MaxDesiredWidth(150.f)
 	[
 		SNew(SBorder)
-		.BorderImage(FEditorStyle::GetBrush("ToolPanel.GroupBorder"))
+		.BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
 		.BorderBackgroundColor(FLinearColor(1.f, 1.f, 1.f, 0.f))
 		.Padding(5.f)
 		.Content()

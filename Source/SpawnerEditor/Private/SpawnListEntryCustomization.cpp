@@ -43,7 +43,7 @@ void FSpawnListEntryCustomization::CustomizeHeader(TSharedRef<IPropertyHandle> P
 	HeaderRow.WholeRowContent()
 	[
 		SNew(SBorder)
-		.BorderImage(FEditorStyle::GetBrush("ToolPanel.GroupBorder"))
+		.BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
 		.BorderBackgroundColor(FLinearColor(0.8f, 0.8f, 0.8f, 1.f))
 		.Padding(5.f)
 		.Content()
