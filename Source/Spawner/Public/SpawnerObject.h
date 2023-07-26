@@ -8,6 +8,7 @@
 #include "SpawnerObject.generated.h"
 
 class USpawnListPreset;
+
 USTRUCT(BlueprintType)
 struct FRespawnListEntry_DEPRECATED
 {
@@ -91,9 +92,12 @@ private:
 	int32 GetSpawnedCount(const TSubclassOf<AActor> Spawned, int32 Index, ESpawnCountCalculationMode CountCalculationMode) const;
 	int32 GetTotalSpawnedCount() const;
 
+	void SwitchOnSpawnMode(const FSpawnStartArgs& Args, const FSpawnArgs& SpawnArgs, int32 IterationCount = 1);
+	
 	void StartDefault(const FSpawnStartArgs& Args);
 	void DefaultSpawnTick(const FSpawnStartArgs Args); // Pass by copy, because FTimerDelegate does not allow refs
 	void StartUsingDataTable(const FSpawnStartArgs& Args);
+	void CurveTableSpawnTick(const FSpawnStartArgs Args); // Pass by copy, because FTimerDelegate does not allow refs
 	void StartUsingCurveTable(const FSpawnStartArgs& Args);
 	
 	AActor* SpawnDefault(const FSpawnArgs& Args);

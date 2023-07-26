@@ -13,6 +13,11 @@ float USpawnListPreset::GetCurveTableTickRate() const
 	return CurveTableTickRate;
 }
 
+TMap<TSoftClassPtr<AActor>, FScalableFloat> USpawnListPreset::GetCurveTableEntries() const
+{
+	return CurveTableEntries;
+}
+
 void USpawnListPreset::PostLoad()
 {
 	Super::PostLoad();

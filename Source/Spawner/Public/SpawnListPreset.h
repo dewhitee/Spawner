@@ -45,6 +45,7 @@ public:
 	ESpawnListPresetDataSource GetDataSource() const { return DataSource; }
 	UCurveTable* GetCurveTable() const;
 	float GetCurveTableTickRate() const;
+	TMap<TSoftClassPtr<AActor>, FScalableFloat> GetCurveTableEntries() const;
 
 protected:
 	virtual void PostLoad() override;
