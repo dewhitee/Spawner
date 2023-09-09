@@ -27,16 +27,17 @@ void USpawnerFunctionLibrary::PushToSpawn(UParameterizedSpawnerObject* Spawner, 
 	{
 		FVector NewLoc = Shape->GetLocationInShape();
 		bool bShouldSkip = false;
-		
+
+		UE_LOG(LogSpawner, Verbose, TEXT("USpawnerFunctionLibrary::PushToSpawn: Pushing %s actor to new location..."), *ActorToPush->GetActorNameOrLabel());
 		Spawner->SnapToSurfaceParameterized(NewLoc, bShouldSkip);
 		
-		UE_LOG(LogSpawner, Verbose, TEXT("USpawnerFunctionLibrary::PushToSpawn: Pushed %s location from %s to %s"),
-			*ActorToPush->GetActorNameOrLabel(),
-			*ActorToPush->GetActorLocation().ToCompactString(),
-			*NewLoc.ToCompactString());
-
 		if (!bShouldSkip)
 		{
+			UE_LOG(LogSpawner, Verbose, TEXT("USpawnerFunctionLibrary::PushToSpawn: Pushed %s location from %s to %s"),
+				*ActorToPush->GetActorNameOrLabel(),
+				*ActorToPush->GetActorLocation().ToCompactString(),
+				*NewLoc.ToCompactString());
+			
 			ActorToPush->SetActorLocation(NewLoc);
 		}
 	}

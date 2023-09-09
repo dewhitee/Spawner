@@ -276,7 +276,7 @@ void USpawnerObject::SnapToSurface(FVector& OutLocation, bool& bShouldSkip, cons
 	}
 
 	// Find which surface is closer
-	UE_LOG(LogSpawner, Verbose, TEXT("%s: UpHit.Distance=%.2f, DownHit.Distance=%.2f"), *GetName(), UpHit.Distance, DownHit.Distance);
+	UE_LOG(LogSpawner, Verbose, TEXT("%s (SnapToSurface): UpHit.Distance=%.2f, DownHit.Distance=%.2f"), *GetName(), UpHit.Distance, DownHit.Distance);
 	if (!UpHit.bBlockingHit && DownHit.bBlockingHit)
 	{
 		OutLocation.Z = DownHit.Location.Z;
@@ -289,12 +289,12 @@ void USpawnerObject::SnapToSurface(FVector& OutLocation, bool& bShouldSkip, cons
 	{
 		if (UpHit.Distance > DownHit.Distance) // Down is closer
 		{
-			UE_LOG(LogSpawner, Verbose, TEXT("%s: Down is closer (Z=%.2f)."), *GetName(), DownHit.Location.Z);
+			UE_LOG(LogSpawner, Verbose, TEXT("%s (SnapToSurface): Down is closer (Z=%.2f)."), *GetName(), DownHit.Location.Z);
 			OutLocation.Z = DownHit.Location.Z;
 		}
 		else // Up is closer
 		{
-			UE_LOG(LogSpawner, Verbose, TEXT("%s: Up is closer (Z=%.2f)."), *GetName(), UpHit.Location.Z);
+			UE_LOG(LogSpawner, Verbose, TEXT("%s (SnapToSurface): Up is closer (Z=%.2f)."), *GetName(), UpHit.Location.Z);
 			OutLocation.Z = UpHit.Location.Z;
 		}
 	}
@@ -335,10 +335,12 @@ void USpawnerObject::SnapToSurface(FVector& OutLocation, bool& bShouldSkip, cons
 						
 						OutLocation = CorrectionNavigableLocation;
 						bShouldSkip = false;
+						UE_LOG(LogSpawner, Verbose, TEXT("%s (SnapToSurface): bRandomizeNavProjectionTargetLocation=true, OutLocation=%s, bShouldSkip=false"), *GetName(), *OutLocation.ToCompactString());
 					}
 				}
 
 				// Do nothing if we are already on a valid navmesh
+				UE_LOG(LogSpawner, Verbose, TEXT("%s (SnapToSurface): Already on a valid navmesh, OutLocation=%s"), *GetName(), *OutLocation.ToCompactString());
 				return;
 			}
 			else if (Args.bDrawDebug)
@@ -361,6 +363,12 @@ void USpawnerObject::SnapToSurface(FVector& OutLocation, bool& bShouldSkip, cons
 		{
 			OutLocation = NavigableLocation;
 			bShouldSkip = false;
+			UE_LOG(LogSpawner, Verbose, TEXT("%s (SnapToSurface): bFoundNavMesh=true, OutLocation=%s, bShouldSkip=0"), *GetName(), *OutLocation.ToCompactString());
+		}
+		else
+		{
+			bShouldSkip = true;
+			UE_LOG(LogSpawner, Verbose, TEXT("%s (SnapToSurface): bFoundNavMesh=false, OutLocation=%s, bShouldSkip=%d"), *GetName(), *OutLocation.ToCompactString(), static_cast<int32>(bShouldSkip));
 		}
 	}
 }
