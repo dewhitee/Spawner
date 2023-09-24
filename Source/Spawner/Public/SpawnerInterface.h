@@ -257,20 +257,16 @@ struct SPAWNER_API FSpawnedListEntry
 	GENERATED_BODY()
 
 	FSpawnedListEntry() : Index(0), SpawnedCount(0) {}
-	FSpawnedListEntry(int32 InIndex, AActor* InActor) : Index(InIndex), SpawnedActors({InActor}), SpawnedCount(1) {}
+	FSpawnedListEntry(int32 InIndex, AActor* InActor) : Index(InIndex), SpawnedActors({InActor}), SpawnedCount(1)
+	{
+		SpawnedActorClass = InActor->GetClass();
+	}
+	
 	TSubclassOf<AActor> GetClass() const
 	{
 		return /*SpawnedActors.IsEmpty() || !IsValid(SpawnedActors[0]) ? nullptr : SpawnedActors[0]->GetClass()*/SpawnedActorClass;
 	}
-	void AddSpawnedActor(AActor* NewActor)
-	{
-		if (!SpawnedActorClass)
-		{
-			SpawnedActorClass = NewActor->GetClass();
-		}
-		SpawnedActors.AddUnique(NewActor);
-		SpawnedCount++;
-	}
+	void AddSpawnedActor(AActor* NewActor);
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category=Spawned)
 	int32 Index;

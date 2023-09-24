@@ -37,6 +37,20 @@ void FSpawnListEntry::SetEditorOnlyDisplayData()
 #endif
 }
 
+void FSpawnedListEntry::AddSpawnedActor(AActor* NewActor)
+{
+	if (!SpawnedActorClass)
+	{
+		SpawnedActorClass = NewActor->GetClass();
+	}
+	SpawnedActors.AddUnique(NewActor);
+	SpawnedCount++;
+	UE_LOG(LogSpawner, Log, TEXT("AddSpawnedActor, NewActor=%s, SpawnedActorClass=%s, SpawnedCount=%d"),
+		*UKismetSystemLibrary::GetDisplayName(NewActor),
+		*UKismetSystemLibrary::GetDisplayName(SpawnedActorClass),
+		SpawnedCount);
+}
+
 FSpawnArgs::FSpawnArgs(const FSpawnStartArgs& InArgs, FVector InLocation, const FSpawnListEntry& InEntry)
 {
 	ClassToSpawn = Entry.ClassToSpawn.Get();
@@ -403,7 +417,8 @@ void USpawnerObject::AddNewSpawnedActor(AActor* SpawnedActor, int32 Index)
 	check(SpawnedActor);
 	for (FSpawnedListEntry& Entry : SpawnedActors)
 	{
-		if (Entry.Index == Index)
+		if ((Entry.Index == Index || CurrentIndex == -1)
+			&& Entry.GetClass() == SpawnedActor->GetClass())
 		{
 			Entry.AddSpawnedActor(SpawnedActor);
 			/*Entry.SpawnedActors.AddUnique(SpawnedActor);
@@ -460,7 +475,8 @@ int32 USpawnerObject::GetSpawnedCount(const TSubclassOf<AActor> Spawned, int32 I
 	check(IsValid(this));
 	for (const FSpawnedListEntry& Entry : SpawnedActors)
 	{
-		if (Entry.Index == Index && Entry.GetClass() == Spawned)
+		// Not using index if equals -1
+		if ((Entry.Index == Index || Index == -1) && Entry.GetClass() == Spawned)
 		{
 			switch (CountCalculationMode)
 			{
@@ -763,6 +779,7 @@ void USpawnerObject::StartUsingDataTable(const FSpawnStartArgs& Args)
 
 void USpawnerObject::StartUsingCurveTable(const FSpawnStartArgs& Args)
 {
+	CurrentIndex = -1;
 	PassedTime = 0.f;
 	Delegate = FTimerDelegate::CreateUObject(this, &USpawnerObject::CurveTableSpawnTick, Args);
 	// todo: Curve tables can't be converted to SpawnList yet
@@ -780,15 +797,17 @@ void USpawnerObject::CurveTableSpawnTick(const FSpawnStartArgs Args)
 	SpawnArgs.bSetActorInstigator = Args.bSetActorInstigator;
 	SpawnArgs.SpawnedActorInstigator = Args.SpawnedActorInstigator;
 	SpawnArgs.bDeferSpawn = Args.bDeferSpawn;
-	SpawnArgs.CountCalculationMode = Args.CountCalculationMode;
+	SpawnArgs.CountCalculationMode = /*Args.CountCalculationMode*/ESpawnCountCalculationMode::CurrentActorCount;
 	SpawnArgs.CollisionHandlingMethod = Args.CollisionHandlingMethod;
+
+	//constexpr bool bUseTotalCountInDeltaCalculation = true;
 	
 	const float CurrentTime = GetCurrentTime();
 	//UCurveTable* Table = SpawnListPreset->GetCurveTable();
 	for (auto&& Entry : /*Table->GetCurves()*/SpawnListPreset->GetCurveTableEntries())
 	{
 		//float Count = FMath::CeilToInt(Curve.CurveToEdit->Eval(CurrentTime));
-		const int32 Count = FMath::CeilToInt(Entry.Value.GetValueAtLevel(CurrentTime));
+		int32 Count = FMath::CeilToInt(Entry.Value.GetValueAtLevel(CurrentTime));
 		if (Count <= 0)
 		{
 			continue;
@@ -799,18 +818,56 @@ void USpawnerObject::CurveTableSpawnTick(const FSpawnStartArgs Args)
 		//const FSpawnArgs SpawnArgs(Args, GetSpawnLocation(Args, bShouldSkip), Entry);
 		SpawnArgs.ClassToSpawn = Entry.Key.LoadSynchronous();
 		SpawnArgs.AtLocation = GetSpawnLocation(Args, bShouldSkip);
+		
 		if (Args.SnapToSurfaceSettings.bSkipIfStillNotOnSurface && bShouldSkip)
 		{
 			UE_LOG(LogSpawner, Warning, TEXT("%s: Spawn of %s is skipped because surface not found under target location."),
 				*GetName(), *SpawnArgs.ClassToSpawn->GetName());
-			return;
+			continue;
 		}
+		
+		//if (SpawnArgs.CountCalculationMode == ESpawnCountCalculationMode::CurrentActorCount)
+		//{
+			// todo: fix logic
+			const int32 SpawnedCount = GetSpawnedCount(SpawnArgs.ClassToSpawn, -1, /*SpawnArgs.CountCalculationMode*/ESpawnCountCalculationMode::CurrentActorCount);
+			const int32 PreviousCount = FMath::CeilToInt(Entry.Value.GetValueAtLevel(CurrentTime - TickRate));
+			const int32 InitialCount = Count;
+			const int32 Delta = Count - PreviousCount;
+			const int32 SpawnedVsCurrentDelta = SpawnedCount - Count;
+			//Count -= (Delta > 0 ? Delta : Count);
+			Count = Delta - SpawnedVsCurrentDelta;
+			//if (Count < SpawnedCount)
+			//{
+			//	Count += SpawnedCount - Count;
+			//}
+			UE_LOG(LogSpawner, Log, TEXT("%s: CurveTableSpawnTick, CurrentTime=%.2f, ClassToSpawn=%s, InitialCount=%d, Count=%d, PreviousCount=%d, Delta=%d, SpawnedCount=%d, CurrentIndex=%d, SpawnedVsCurrentDelta=%d"),
+				*GetName(),
+				CurrentTime,
+				*UKismetSystemLibrary::GetDisplayName(SpawnArgs.ClassToSpawn),
+				InitialCount,
+				Count,
+				PreviousCount,
+				Delta,
+				SpawnedCount,
+				CurrentIndex,
+				SpawnedVsCurrentDelta);
+		//}
 		
 		SpawnArgs.Entry.Count.ExactCount = Count;
 		SpawnArgs.Entry.Time.Delay = /*TimeRate*/TickRate;
 		SpawnArgs.Entry.ClassToSpawn = SpawnArgs.ClassToSpawn;
 
-		SwitchOnSpawnMode(Args, SpawnArgs, Count);
+		if (Count > 0)
+		{
+			SwitchOnSpawnMode(Args, SpawnArgs, Count);
+		}
+		else
+		{
+			// todo: Remove n actors
+			for (int32 i = 0; i < FMath::Abs(Count); i++)
+			{
+			}
+		}
 	}
 }
 
