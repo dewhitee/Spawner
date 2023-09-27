@@ -788,6 +788,12 @@ void USpawnerObject::StartUsingCurveTable(const FSpawnStartArgs& Args)
 
 void USpawnerObject::CurveTableSpawnTick(const FSpawnStartArgs Args)
 {
+	if (!SpawnListPreset)
+	{
+		UE_LOG(LogSpawner, Error, TEXT("%s: SpawnListPreset was nullptr on CurveTableSpawnTick"), *UKismetSystemLibrary::GetDisplayName(this));
+		return;
+	}
+	
 	const float TickRate = SpawnListPreset->GetCurveTableTickRate();
 	check(TickRate > 0.f);
 
