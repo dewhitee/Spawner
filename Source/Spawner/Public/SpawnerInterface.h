@@ -464,7 +464,7 @@ struct FSpawnStartArgs
 	bool bDeferSpawn = false;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Spawner)
-	ESpawnCountCalculationMode CountCalculationMode;
+	ESpawnCountCalculationMode CountCalculationMode = ESpawnCountCalculationMode::CurrentActorCount;
 	
 	/**
 	 * Should actors be respawned after if they were destroyed?
